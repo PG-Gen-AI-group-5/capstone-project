@@ -77,7 +77,7 @@ How to collect and store each dataset: [docs/DATA_COLLECTION.md](docs/DATA_COLLE
 | 4.2 | FII history from NSDL; find a DII history source or drop DII history | History table, or a recorded decision |
 | 4.3 | RBI policy decisions entered by hand in `data/manual/rbi_policy.csv` (announced around 10:00 IST, so usable from the next day) | ~65 decisions with dates and rates |
 | 4.4 | FRED series: DGS10, VIXCLS (released daily); DEXINUS, DTWEXBGS, DCOILBRENTEU (released weekly) | Daily series in Parquet |
-| 4.5 | `known_from` for every macro value: first-release date, or a 7-day lag for weekly-released series and 1-day for daily ones | Macro values pass the time-rule tests |
+| 4.5 | `known_from` for every macro value: next day for market prices (all five FRED series); first-release date for any revisable economic release added later. Live job: daily source for USD/INR and Brent (FRED publishes them weekly) | Macro values pass the time-rule tests |
 
 ### 5. Data: news (GDELT, secondary source)
 

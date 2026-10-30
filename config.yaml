@@ -1,0 +1,115 @@
+# Project settings. Secrets (API keys) go in .env, not here.
+
+paths:
+  data: data                       # relative to the project root
+
+# Which stocks each part of the system uses (tiers come from data/manual/universe.csv)
+universe:
+  agents: nifty50                  # announcements, PDFs, news, evaluation
+  prices: nifty50                  # set to nifty200 to also collect Nifty 200 prices for training
+
+# First date collected for each source
+start_dates:
+  prices: 2016-01-01
+  results: 2015-01-01
+  corporate_actions: 2016-01-01
+  announcements: 2016-01-01
+  insider: 2016-01-01
+  pdfs: 2022-10-01                 # full text only for the agent window (validation + test + lookback)
+  gdelt: 2022-10-01
+  fred: 2016-01-01
+
+# Minimum seconds between requests, per host
+rate_limits:
+  www.nseindia.com: 1.0
+  nsearchives.nseindia.com: 1.0
+  data.gdeltproject.org: 0.2
+  api.stlouisfed.org: 0.5
+  default: 1.0
+
+http:
+  timeout: 30
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+
+prices:
+  publish_time_ist: "18:00"        # bhavcopy appears after the close; usable from the next forecast
+
+fii_dii:
+  publish_time_ist: "20:00"        # provisional figures are posted in the evening
+
+announcements:
+  # An announcement is important if its category contains one of these (case-insensitive)
+  important_categories:
+    - financial result
+    - outcome of board meeting
+    - press release
+    - acquisition
+    - amalgamation
+    - merger
+    - credit rating
+    - change in director
+    - change in management
+    - change in key managerial
+    - resignation
+    - appointment
+    - award of order
+    - receipt of order
+    - bagging
+    - takeover
+    - pledge
+    - buyback
+    - scheme of arrangement
+    - restructuring
+    - fraud
+    - default
+    - action(s) taken or orders passed
+  # For generic categories ("Updates", "General Updates"), important if the summary contains one of these words
+  generic_categories: [updates, general updates]
+  important_keywords:
+    - order
+    - contract
+    - acquisition
+    - acquire
+    - merger
+    - rating
+    - resign
+    - appoint
+    - fire
+    - plant
+    - usfda
+    - penalty
+    - fine
+    - litigation
+    - investigation
+    - search
+    - raid
+    - strike
+    - shutdown
+    - guidance
+    - results
+    - launch
+    - expansion
+    - capex
+    - stake
+
+pdfs:
+  scanned_chars_per_page: 100      # less text than this per page = probably a scanned image
+
+fred:
+  # The five series are market prices: the value for day d is known at that day's close,
+  # so it is usable from the next day. FRED publishes three of them only weekly; that matters
+  # for the live daily job (latest days missing on FRED), not for the backtest.
+  series:
+    DGS10: {lag_days: 1, published: daily, description: US 10-year Treasury yield}
+    VIXCLS: {lag_days: 1, published: daily, description: US VIX}
+    DEXINUS: {lag_days: 1, published: weekly, description: USD/INR}
+    DTWEXBGS: {lag_days: 1, published: weekly, description: Broad dollar index}
+    DCOILBRENTEU: {lag_days: 1, published: weekly, description: Brent crude}
+
+gdelt:
+  keep_zip: false                  # raw 15-minute files are deleted after filtering (re-downloadable)
+  masterlist_max_age_hours: 24
+
+tracker:
+  max_attempts: 3
+  retry_base_sec: 300              # retry after 5 min, then 10, then 20

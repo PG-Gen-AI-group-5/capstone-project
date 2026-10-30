@@ -285,15 +285,17 @@ The agents only read documents from the validation and test periods (plus a 3-mo
 
 Returns `date` and `value` (a `.` value means missing). One tracker task per series.
 
-| Series | Meaning | When a value becomes public |
+| Series | Meaning | How FRED publishes it |
 |---|---|---|
-| `DGS10` | US 10-year Treasury yield | Next day |
-| `VIXCLS` | US VIX | Next day |
-| `DEXINUS` | USD/INR | **Released weekly** (Fed H.10 release), so a day's value can be up to a week late |
-| `DTWEXBGS` | Broad dollar index | **Released weekly** (H.10) |
-| `DCOILBRENTEU` | Brent crude | **Released weekly** (EIA) |
+| `DGS10` | US 10-year Treasury yield | Daily |
+| `VIXCLS` | US VIX | Daily |
+| `DEXINUS` | USD/INR | Weekly (Fed H.10 release) |
+| `DTWEXBGS` | Broad dollar index | Weekly (H.10) |
+| `DCOILBRENTEU` | Brent crude | Weekly (EIA) |
 
-**Leakage trap:** the date on a weekly-released value is *not* the date it became public. Set `known_from` from the first-release date (FRED/ALFRED real-time parameters, to be confirmed in the pilot). If that isn't available, lag weekly-released series by 7 days and daily ones by 1 day. Alternatively, take USD/INR from yfinance (`INR=X`) or FBIL, which publish daily.
+**`known_from`:** all five are market prices. The value for day `d` was publicly known at that day's US close, so it is usable from the next day: `known_from` = `d` + 1 day at 00:00 UTC (05:30 IST), before our 08:30 IST forecast. The lag is set per series in `config.yaml` (`fred.series.*.lag_days`).
+
+**FRED's weekly publishing does not cause look-ahead in the backtest**, because the underlying price was already public. It matters for the **live daily job**: the last few days of the weekly series are not on FRED yet. For live runs, take USD/INR and Brent from a daily source (for example yfinance `INR=X` and `BZ=F`). Revisable economic releases (CPI, GDP) would be different: for those, use the first-release date.
 
 ---
 
@@ -497,7 +499,8 @@ CREATE TABLE runs (
 CREATE TABLE tasks (
     task_id          INTEGER PRIMARY KEY,
     source           TEXT NOT NULL REFERENCES sources(source),
-    symbol           TEXT NOT NULL DEFAULT '*',       -- '*' = all stocks (not NULL, so UNIQUE works)
+    task_key         TEXT NOT NULL,                   -- '2024-06-03', 'INFY|2024', 'nse:12345', '20221001000000'
+    symbol           TEXT NOT NULL DEFAULT '*',       -- '*' = all stocks
     period_start     TEXT NOT NULL,                   -- date, or datetime for 15-minute GDELT files
     period_end       TEXT NOT NULL,
     url              TEXT,
@@ -514,9 +517,9 @@ CREATE TABLE tasks (
     fallback_source  TEXT,             -- e.g. 'yfinance' if filled from a backup
     created_at       TEXT NOT NULL,
     updated_at       TEXT NOT NULL,
-    UNIQUE (source, symbol, period_start)
+    UNIQUE (source, task_key)        -- one key per unit of work; a stock can have many documents on one day
 );
-CREATE INDEX idx_tasks_status ON tasks (status, next_retry_at);
+CREATE INDEX idx_tasks_due ON tasks (source, status, next_retry_at);
 
 -- Every try, never overwritten
 CREATE TABLE attempts (
@@ -569,7 +572,7 @@ CREATE TABLE coverage (
 );
 ```
 
-Coverage rules: prices are expected for every trading day after a stock's `data_start`, so a missing price is a `gap` and creates a `coverage_gap` review item. Zero announcements or zero news on a day is normal (`empty`), not a gap.
+Coverage rules: prices are expected on every trading day from a stock's `data_start` (or, if that is empty, from the first day it appears in the data), so a missing price is a `gap`. The bhavcopy quality check already puts each day's missing stocks on the review list (`missing_symbol`). Zero announcements or zero news on a day is normal (`empty`), not a gap.
 
 ### Example: three days in a bhavcopy backfill
 
@@ -583,14 +586,25 @@ Later, in review: 2020-06-15 → retry → `success`. 2024-07-08 → fix the par
 
 ### Commands
 
+The code is in `src/ingest/` (one collector per source in `src/ingest/sources/`).
+
 ```
+python -m src.ingest init                                               # tracker database + trading calendar
+python -m src.ingest universe                                           # data/manual/universe.csv from NSE lists
+python -m src.ingest sources                                            # list all sources
+python -m src.ingest pilot                                              # every source, 5 stocks, June 2024
 python -m src.ingest plan    --source nse_bhavcopy --from 2016-01-01   # create pending tasks
 python -m src.ingest run     --source nse_bhavcopy                      # run; failures are skipped
 python -m src.ingest status                                             # progress per source
 python -m src.ingest review                                             # the "verify later" list
 python -m src.ingest resolve 123 --decision accept_gap --note "NSE file missing; checked website"
+python -m src.ingest reparse --source nse_bhavcopy --from 2024-07-08   # after fixing a parser
 python -m src.ingest coverage --symbol INFY --from 2024-06-01           # per stock, per day
+python -m src.ingest views                                              # DuckDB views over the lake
+python -m src.ingest daily                                              # evening update job
 ```
+
+Decisions for `resolve`: `retry` (download again), `fixed_parser` (re-parse the saved file), `accept_gap` (data really doesn't exist), `use_fallback` (fill from yfinance; prices only), `ignore`, and `acknowledge` (close a warning on a task that succeeded).
 
 ### Useful queries
 
@@ -643,5 +657,12 @@ SELECT source, status, COUNT(*) FROM tasks GROUP BY source, status;
 4. **Symbol changes:** ZOMATO → ETERNAL, TATAMOTORS → TMPV (with demerger adjustment); look for others by checking every stock for gaps.
 5. **GDELT history route:** raw files (~761 GB to stream) or BigQuery (measure bytes scanned per month with a dry run).
 6. **Board meetings history:** check whether date parameters return meetings older than the latest 20.
-7. **FRED first-release dates:** confirm how to get `known_from` for weekly-released series.
-8. **Nifty 200 prices:** collect or not, based on whether the LSTM needs more training data.
+7. **Nifty 200 prices:** collect or not, based on whether the LSTM needs more training data.
+8. **News aliases:** the default aliases in `universe.csv` are formal company names (for example "adani ports and special economic zone"); GDELT often uses shorter names. Review them before the full GDELT run.
+
+9. **Promoter block sales:** the insider (PIT) endpoint returned nothing for TCS in 2023–2024, although Tata Sons sold TCS shares in March 2024. Such sales are disclosed under SEBI's takeover regulations (SAST), which NSE lists separately; consider adding that endpoint.
+10. **Very long PDFs:** important announcements include annual reports (one Infosys PDF in the pilot had 298 pages, ~1 million characters). Decide whether to cap pages or skip annual reports before the full PDF run.
+
+Resolved: FRED `known_from` (all five series are market prices, usable the next day; see step 10).
+
+**Pilot result (30 Oct 2026, 5 stocks, June 2024):** every source ran end to end. Prices 950/950 stock-days, index 19/19 days (17 Jun holiday → `no_data`), corporate actions parsed correctly (splits and bonuses; Reliance's 2020 rights issue and 2023 demerger flagged for manual adjustment), 707 announcements for Jan–Jun 2024 (144 important), 14 PDFs extracted (none scanned), 8 GDELT files filtered. FRED waits for an API key.
