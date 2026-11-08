@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import zipfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -185,6 +185,7 @@ INDEX_COLUMNS = {"Index Name": "index_name", "Index Date": "trade_date", "Open I
                  "Points Change": "points_change", "Change(%)": "change_pct", "Volume": "volume",
                  "Turnover (Rs. Cr.)": "turnover_cr", "P/E": "pe", "P/B": "pb", "Div Yield": "div_yield"}
 KEEP_INDICES = {"nifty 50": "Nifty 50", "india vix": "India VIX"}
+YF_INDICES = {"^NSEI": "Nifty 50", "^INDIAVIX": "India VIX"}
 
 INDEX_SCHEMA = {
     "index_name": "str", "trade_date": "date", "open": "float", "high": "float", "low": "float",
@@ -198,10 +199,38 @@ def index_url(d: date) -> str:
     return f"https://nsearchives.nseindia.com/content/indices/ind_close_all_{d:%d%m%Y}.csv"
 
 
+def index_file_date_ok(value, d: date) -> bool:
+    """Is the file's date d? Most files write DD-MM-YYYY, but a few (6, 10, 11 Apr 2023) write MM-DD-YYYY."""
+    s = str(value).strip()
+    if s in ("", "-", "nan", "None", "NA") or parse_date(s) == d:
+        return True
+    try:
+        return datetime.strptime(s, "%m-%d-%Y").date() == d
+    except ValueError:
+        return False
+
+
+def yf_index_rows(data: pd.DataFrame, d: date) -> pd.DataFrame:
+    """Turn a yfinance download (grouped by ticker) into index_daily rows for day d only."""
+    rows = []
+    for ticker, name in YF_INDICES.items():
+        if data.empty or ticker not in data.columns.get_level_values(0):
+            continue
+        sub = data[ticker].dropna(how="all")
+        sub = sub[[ts.date() == d for ts in sub.index]]
+        if sub.empty:
+            continue
+        r = sub.iloc[0]
+        rows.append({"index_name": name, "trade_date": d, "open": r["Open"], "high": r["High"],
+                     "low": r["Low"], "close": r["Close"]})
+    return pd.DataFrame(rows)
+
+
 class NseIndices(Source):
     name = "nse_indices"
     task_unit = "day"
     description = "NSE daily index closes: Nifty 50 and India VIX (one CSV per trading day)"
+    fallback_name = "yfinance"
 
     def default_start(self, ctx):
         return ctx.cfg.start_date("prices")
@@ -232,16 +261,34 @@ class NseIndices(Source):
         key = df["index_name"].str.strip().str.lower()
         df = df[key.isin(KEEP_INDICES)].copy()
         df["index_name"] = df["index_name"].str.strip().str.lower().map(KEEP_INDICES)
-        df["trade_date"] = df["trade_date"].map(parse_date)   # "-" values become NaN when the lake conforms types
+        issues = []
+        wrong = sorted({str(v).strip() for v in df["trade_date"] if not index_file_date_ok(v, d)})
+        if wrong:
+            issues.append(Issue("date_mismatch", "error", {"file_dates": wrong}, blocking=True))
+        df["trade_date"] = d   # the file's own date can't be trusted to be day-first (see index_file_date_ok)
         df["published_at"] = at_ist(d, ctx.cfg["prices"]["publish_time_ist"])
         df["source"] = "nse_indices"
         df["year"] = str(d.year)
-        issues = []
         if "Nifty 50" not in set(df["index_name"]):
             issues.append(Issue("missing_index", "error", {"index": "Nifty 50"}, blocking=True))
         if "India VIX" not in set(df["index_name"]):
             issues.append(Issue("missing_index", "warn", {"index": "India VIX"}))
         return ParseResult([Frame("index_daily", df, ["index_name", "trade_date"], "year", INDEX_SCHEMA)], issues)
+
+    def fallback(self, ctx, task):
+        """Fill a day NSE has no index file for from yfinance (used when a review decides 'use_fallback')."""
+        import yfinance as yf
+
+        d = task.start_date
+        data = yf.download(list(YF_INDICES), start=d.isoformat(), end=(d + timedelta(days=1)).isoformat(),
+                           auto_adjust=False, progress=False, group_by="ticker")
+        df = yf_index_rows(data, d)
+        if df.empty or "Nifty 50" not in set(df["index_name"]):
+            raise IngestError("empty_response", f"yfinance returned no Nifty 50 close for {d}")
+        df["published_at"] = at_ist(d, ctx.cfg["prices"]["publish_time_ist"])
+        df["source"] = "yfinance"
+        df["year"] = str(d.year)
+        return ParseResult([Frame("index_daily", df, ["index_name", "trade_date"], "year", INDEX_SCHEMA)])
 
 
 # ---------------------------------------------------------------- FII / DII flows

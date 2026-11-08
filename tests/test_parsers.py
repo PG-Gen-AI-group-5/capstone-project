@@ -12,7 +12,7 @@ from src.ingest.lake import Lake
 from src.ingest.sources.gdelt import build_matchers, filter_rows
 from src.ingest.sources.nse_announcements import is_important
 from src.ingest.sources.nse_corporate import parse_subject
-from src.ingest.sources.nse_daily import NseBhavcopy, bhavcopy_url, parse_bhavcopy
+from src.ingest.sources.nse_daily import NseBhavcopy, NseIndices, bhavcopy_url, parse_bhavcopy, yf_index_rows
 from src.ingest.tracker import Task
 from src.ingest.universe import default_aliases
 from src.timeutil import UTC, at_ist, parse_date, parse_ist_datetime
@@ -35,6 +35,7 @@ def test_time_parsing():
     assert parse_date("04-JAN-2016") == date(2016, 1, 4)
     assert parse_date("04-01-2016") == date(2016, 1, 4)
     assert parse_date("2025-10-01") == date(2025, 10, 1)
+    assert parse_date("13-Jul-20") == date(2020, 7, 13)  # the 13 Jul 2020 bhavcopy uses a 2-digit year
     assert parse_date("-") is None
     assert at_ist(date(2024, 6, 3), "18:00") == datetime(2024, 6, 3, 12, 30, tzinfo=UTC)
     # a date without a time is treated as end of day IST (usable only from the next day)
@@ -79,6 +80,45 @@ def test_bhavcopy_parse_maps_old_symbols_and_flags_missing_stocks(ctx, tmp_path)
     issues = {i.check_name: i for i in result.issues}
     assert issues["missing_symbol"].details == {"symbols": ["BBB"]}
     assert not any(i.blocking for i in result.issues)
+
+
+INDEX_HEADER = ("Index Name,Index Date,Open Index Value,High Index Value,Low Index Value,Closing Index Value,"
+                "Points Change,Change(%),Volume,Turnover (Rs. Cr.),P/E,P/B,Div Yield")
+
+
+def parse_index_file(ctx, tmp_path, day: str, file_date: str):
+    path = tmp_path / "ind_close_all.csv"
+    path.write_text("\n".join([INDEX_HEADER,
+                               f"Nifty 50,{file_date},17500,17650,17450,17600,100,0.57,1,1,21,4,1.3",
+                               f"India VIX,{file_date},12,13,11,12.5,0.5,4,-,-,-,-,-"]))
+    task = Task(1, "nse_indices", day, "*", day, day, None, None, None, "parse", "running", 0, str(path))
+    return NseIndices().parse(ctx, task, path)
+
+
+def test_index_parse_uses_the_task_date_even_when_the_file_writes_month_first(ctx, tmp_path):
+    # NSE's files for 6, 10 and 11 Apr 2023 write the date as MM-DD-YYYY ("04-10-2023" = 10 Apr)
+    result = parse_index_file(ctx, tmp_path, "2023-04-10", "04-10-2023")
+    assert set(result.frames[0].df["trade_date"]) == {date(2023, 4, 10)}
+    assert not any(i.blocking for i in result.issues)
+
+
+def test_index_parse_blocks_a_file_for_another_day(ctx, tmp_path):
+    result = parse_index_file(ctx, tmp_path, "2023-04-10", "11-04-2023")
+    assert [i.check_name for i in result.issues if i.blocking] == ["date_mismatch"]
+
+
+def test_index_rows_from_yfinance_keep_only_the_requested_day():
+    # NSE has no index file for 20 Jun 2016; the fallback reads ^NSEI and ^INDIAVIX from yfinance
+    days = pd.to_datetime(["2016-06-17", "2016-06-20"])
+    fields = ["Open", "High", "Low", "Close", "Volume"]
+    cols = pd.MultiIndex.from_product([["^NSEI", "^INDIAVIX"], fields])
+    data = pd.DataFrame([[8140, 8180, 8130, 8170.2, 0, 17.0, 17.6, 16.9, 17.35, 0],
+                         [8200, 8250, 8190, 8238.5, 0, 17.4, 17.9, 17.1, 17.52, 0]], index=days, columns=cols)
+    df = yf_index_rows(data, date(2016, 6, 20)).set_index("index_name")
+    assert df.loc["Nifty 50", "close"] == 8238.5
+    assert df.loc["India VIX", "close"] == 17.52
+    assert set(df["trade_date"]) == {date(2016, 6, 20)}
+    assert yf_index_rows(pd.DataFrame(), date(2016, 6, 20)).empty
 
 
 # ---------------------------------------------------------------- corporate actions

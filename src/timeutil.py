@@ -11,7 +11,7 @@ from datetime import date, datetime, time, timedelta, timezone
 IST = timezone(timedelta(hours=5, minutes=30))
 UTC = timezone.utc
 
-_DATE_FORMATS = ("%d-%b-%Y", "%d-%m-%Y", "%Y-%m-%d", "%d %b %Y", "%d/%m/%Y")
+_DATE_FORMATS = ("%d-%b-%Y", "%d-%m-%Y", "%Y-%m-%d", "%d %b %Y", "%d/%m/%Y", "%d-%b-%y")
 _DATETIME_FORMATS = ("%d-%b-%Y %H:%M:%S", "%d-%b-%Y %H:%M", "%d-%m-%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S",
                      "%d %b %Y %H:%M:%S")
 
