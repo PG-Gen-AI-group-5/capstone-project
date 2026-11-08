@@ -1,0 +1,277 @@
+===== 11:37:21 plan --source nse_bhavcopy --from 2016-01-01
+nse_bhavcopy: 2840 task(s) in range, 2820 new, 0 reset to pending
+===== 11:37:24 run --source nse_bhavcopy
+  ...50 done ({'success': 48, 'no_data': 2})
+  ...100 done ({'success': 93, 'no_data': 7})
+  ...150 done ({'success': 142, 'no_data': 8})
+  ...200 done ({'success': 189, 'no_data': 11})
+  ...250 done ({'success': 235, 'no_data': 15})
+  ...300 done ({'success': 284, 'no_data': 16})
+  ...350 done ({'success': 329, 'no_data': 21})
+  ...400 done ({'success': 378, 'no_data': 22})
+  ...450 done ({'success': 426, 'no_data': 24})
+  ...500 done ({'success': 474, 'no_data': 26})
+  ...550 done ({'success': 522, 'no_data': 28})
+  ...600 done ({'success': 568, 'no_data': 32})
+  ...650 done ({'success': 617, 'no_data': 33})
+  ...700 done ({'success': 665, 'no_data': 35})
+  ...750 done ({'success': 710, 'no_data': 40})
+  ...800 done ({'success': 758, 'no_data': 42})
+  ...850 done ({'success': 806, 'no_data': 44})
+  ...900 done ({'success': 851, 'no_data': 49})
+  ...950 done ({'success': 899, 'no_data': 51})
+  ...1000 done ({'success': 943, 'no_data': 57})
+  ...1050 done ({'success': 991, 'no_data': 59})
+  ...1100 done ({'success': 1039, 'no_data': 61})
+  ...1150 done ({'success': 1083, 'no_data': 67})
+  2020-07-13: needs_review (validation_failed: date_mismatch)
+  ...1200 done ({'success': 1132, 'no_data': 67, 'failed': 1})
+  ...1250 done ({'success': 1181, 'no_data': 68, 'failed': 1})
+  ...1300 done ({'success': 1229, 'no_data': 70, 'failed': 1})
+  ...1350 done ({'success': 1277, 'no_data': 72, 'failed': 1})
+  ...1400 done ({'success': 1322, 'no_data': 77, 'failed': 1})
+  ...1450 done ({'success': 1371, 'no_data': 78, 'failed': 1})
+  ...1500 done ({'success': 1418, 'no_data': 81, 'failed': 1})
+  ...1550 done ({'success': 1465, 'no_data': 84, 'failed': 1})
+  ...1600 done ({'success': 1514, 'no_data': 85, 'failed': 1})
+  ...1650 done ({'success': 1560, 'no_data': 89, 'failed': 1})
+  ...1700 done ({'success': 1609, 'no_data': 90, 'failed': 1})
+  ...1750 done ({'success': 1656, 'no_data': 93, 'failed': 1})
+  ...1800 done ({'success': 1703, 'no_data': 96, 'failed': 1})
+  ...1850 done ({'success': 1752, 'no_data': 97, 'failed': 1})
+  ...1900 done ({'success': 1798, 'no_data': 101, 'failed': 1})
+  ...1950 done ({'success': 1846, 'no_data': 103, 'failed': 1})
+  ...2000 done ({'success': 1894, 'no_data': 105, 'failed': 1})
+  ...2050 done ({'success': 1941, 'no_data': 108, 'failed': 1})
+  ...2100 done ({'success': 1988, 'no_data': 111, 'failed': 1})
+  ...2150 done ({'success': 2035, 'no_data': 114, 'failed': 1})
+  ...2200 done ({'success': 2079, 'no_data': 120, 'failed': 1})
+  ...2250 done ({'success': 2127, 'no_data': 122, 'failed': 1})
+  ...2300 done ({'success': 2176, 'no_data': 123, 'failed': 1})
+  ...2350 done ({'success': 2223, 'no_data': 126, 'failed': 1})
+  ...2400 done ({'success': 2271, 'no_data': 128, 'failed': 1})
+  ...2450 done ({'success': 2316, 'no_data': 133, 'failed': 1})
+  ...2500 done ({'success': 2365, 'no_data': 134, 'failed': 1})
+  ...2550 done ({'success': 2412, 'no_data': 137, 'failed': 1})
+  ...2600 done ({'success': 2460, 'no_data': 139, 'failed': 1})
+  ...2650 done ({'success': 2507, 'no_data': 142, 'failed': 1})
+  ...2700 done ({'success': 2552, 'no_data': 147, 'failed': 1})
+  ...2750 done ({'success': 2600, 'no_data': 149, 'failed': 1})
+  ...2800 done ({'success': 2648, 'no_data': 151, 'failed': 1})
+nse_bhavcopy: {'success': 2667, 'no_data': 152, 'failed': 1}
+===== 12:25:15 plan --source nse_indices --from 2016-01-01
+nse_indices: 2840 task(s) in range, 2820 new, 0 reset to pending
+===== 12:25:18 run --source nse_indices
+  ...50 done ({'success': 48, 'no_data': 2})
+  ...100 done ({'success': 93, 'no_data': 7})
+  2016-06-20: needs_review (http_404: No file for trading day 2016-06-20)
+  ...150 done ({'success': 141, 'no_data': 8, 'failed': 1})
+  ...200 done ({'success': 188, 'no_data': 11, 'failed': 1})
+  ...250 done ({'success': 234, 'no_data': 15, 'failed': 1})
+  ...300 done ({'success': 283, 'no_data': 16, 'failed': 1})
+  ...350 done ({'success': 328, 'no_data': 21, 'failed': 1})
+  ...400 done ({'success': 377, 'no_data': 22, 'failed': 1})
+  ...450 done ({'success': 425, 'no_data': 24, 'failed': 1})
+  ...500 done ({'success': 473, 'no_data': 26, 'failed': 1})
+  ...550 done ({'success': 521, 'no_data': 28, 'failed': 1})
+  ...600 done ({'success': 567, 'no_data': 32, 'failed': 1})
+  ...650 done ({'success': 616, 'no_data': 33, 'failed': 1})
+  ...700 done ({'success': 664, 'no_data': 35, 'failed': 1})
+  ...750 done ({'success': 709, 'no_data': 40, 'failed': 1})
+  ...800 done ({'success': 757, 'no_data': 42, 'failed': 1})
+  ...850 done ({'success': 805, 'no_data': 44, 'failed': 1})
+  ...900 done ({'success': 850, 'no_data': 49, 'failed': 1})
+  ...950 done ({'success': 898, 'no_data': 51, 'failed': 1})
+  ...1000 done ({'success': 942, 'no_data': 57, 'failed': 1})
+  ...1050 done ({'success': 990, 'no_data': 59, 'failed': 1})
+  ...1100 done ({'success': 1038, 'no_data': 61, 'failed': 1})
+  ...1150 done ({'success': 1082, 'no_data': 67, 'failed': 1})
+  ...1200 done ({'success': 1132, 'no_data': 67, 'failed': 1})
+  ...1250 done ({'success': 1181, 'no_data': 68, 'failed': 1})
+  ...1300 done ({'success': 1229, 'no_data': 70, 'failed': 1})
+  ...1350 done ({'success': 1277, 'no_data': 72, 'failed': 1})
+  ...1400 done ({'success': 1322, 'no_data': 77, 'failed': 1})
+  ...1450 done ({'success': 1371, 'no_data': 78, 'failed': 1})
+  ...1500 done ({'success': 1418, 'no_data': 81, 'failed': 1})
+  ...1550 done ({'success': 1465, 'no_data': 84, 'failed': 1})
+  ...1600 done ({'success': 1514, 'no_data': 85, 'failed': 1})
+  ...1650 done ({'success': 1560, 'no_data': 89, 'failed': 1})
+  ...1700 done ({'success': 1609, 'no_data': 90, 'failed': 1})
+  ...1750 done ({'success': 1656, 'no_data': 93, 'failed': 1})
+  ...1800 done ({'success': 1703, 'no_data': 96, 'failed': 1})
+  ...1850 done ({'success': 1752, 'no_data': 97, 'failed': 1})
+  ...1900 done ({'success': 1798, 'no_data': 101, 'failed': 1})
+  ...1950 done ({'success': 1846, 'no_data': 103, 'failed': 1})
+  ...2000 done ({'success': 1894, 'no_data': 105, 'failed': 1})
+  ...2050 done ({'success': 1941, 'no_data': 108, 'failed': 1})
+  ...2100 done ({'success': 1988, 'no_data': 111, 'failed': 1})
+  ...2150 done ({'success': 2035, 'no_data': 114, 'failed': 1})
+  ...2200 done ({'success': 2079, 'no_data': 120, 'failed': 1})
+  ...2250 done ({'success': 2127, 'no_data': 122, 'failed': 1})
+  ...2300 done ({'success': 2176, 'no_data': 123, 'failed': 1})
+  ...2350 done ({'success': 2223, 'no_data': 126, 'failed': 1})
+  ...2400 done ({'success': 2271, 'no_data': 128, 'failed': 1})
+  ...2450 done ({'success': 2316, 'no_data': 133, 'failed': 1})
+  ...2500 done ({'success': 2365, 'no_data': 134, 'failed': 1})
+  ...2550 done ({'success': 2412, 'no_data': 137, 'failed': 1})
+  ...2600 done ({'success': 2460, 'no_data': 139, 'failed': 1})
+  ...2650 done ({'success': 2507, 'no_data': 142, 'failed': 1})
+  ...2700 done ({'success': 2552, 'no_data': 147, 'failed': 1})
+  ...2750 done ({'success': 2600, 'no_data': 149, 'failed': 1})
+  ...2800 done ({'success': 2648, 'no_data': 151, 'failed': 1})
+nse_indices: {'success': 2667, 'no_data': 152, 'failed': 1}
+===== 13:13:38 plan --source nse_corporate_actions --refresh
+nse_corporate_actions: 50 task(s) in range, 45 new, 5 reset to pending
+===== 13:13:45 run --source nse_corporate_actions
+  ...50 done ({'success': 49, 'no_data': 1})
+nse_corporate_actions: {'success': 49, 'no_data': 1}
+===== 13:14:36 plan --source nse_results --refresh
+nse_results: 50 task(s) in range, 45 new, 5 reset to pending
+===== 13:14:38 run --source nse_results
+  ...50 done ({'success': 48, 'no_data': 2})
+nse_results: {'success': 48, 'no_data': 2}
+===== 13:15:29 plan --source nse_board_meetings --refresh
+nse_board_meetings: 50 task(s) in range, 45 new, 5 reset to pending
+===== 13:15:31 run --source nse_board_meetings
+  ...50 done ({'success': 50})
+nse_board_meetings: {'success': 50}
+===== 13:16:22 plan --source nse_announcements --refresh
+nse_announcements: 550 task(s) in range, 545 new, 5 reset to pending
+===== 13:16:24 run --source nse_announcements
+  ...50 done ({'success': 43, 'no_data': 7})
+  ...100 done ({'success': 89, 'no_data': 11})
+  ...150 done ({'success': 135, 'no_data': 15})
+  ...200 done ({'success': 181, 'no_data': 19})
+  ...250 done ({'success': 228, 'no_data': 22})
+  ...300 done ({'success': 276, 'no_data': 24})
+  ...350 done ({'success': 324, 'no_data': 26})
+  ...400 done ({'success': 374, 'no_data': 26})
+  ...450 done ({'success': 424, 'no_data': 26})
+  ...500 done ({'success': 474, 'no_data': 26})
+  ...550 done ({'success': 524, 'no_data': 26})
+nse_announcements: {'success': 524, 'no_data': 26}
+===== 13:25:39 plan --source nse_insider --refresh
+nse_insider: 550 task(s) in range, 545 new, 5 reset to pending
+===== 13:25:41 run --source nse_insider
+  ...50 done ({'success': 38, 'no_data': 12})
+  ...100 done ({'success': 77, 'no_data': 23})
+  ...150 done ({'success': 116, 'no_data': 34})
+  ...200 done ({'success': 156, 'no_data': 44})
+  ...250 done ({'success': 199, 'no_data': 51})
+  ...300 done ({'success': 238, 'no_data': 62})
+  ...350 done ({'success': 270, 'no_data': 80})
+  ...400 done ({'success': 296, 'no_data': 104})
+  ...450 done ({'success': 321, 'no_data': 129})
+  ...500 done ({'success': 338, 'no_data': 162})
+  ...550 done ({'success': 346, 'no_data': 204})
+nse_insider: {'success': 346, 'no_data': 204}
+===== 13:35:00 plan --source nse_pledges --refresh
+nse_pledges: 50 task(s) in range, 45 new, 5 reset to pending
+===== 13:35:02 run --source nse_pledges
+  ...50 done ({'no_data': 50})
+nse_pledges: {'no_data': 50}
+===== 13:35:54 plan --source nse_shareholding --refresh
+nse_shareholding: 50 task(s) in range, 45 new, 5 reset to pending
+===== 13:35:56 run --source nse_shareholding
+  ...50 done ({'success': 50})
+nse_shareholding: {'success': 50}
+===== 13:36:47 finished
+===== 13:36:47 status
+source                 total  success  no_data  pending  running  retry_wait  needs_review  verified_gap  skipped
+---------------------  -----  -------  -------  -------  -------  ----------  ------------  ------------  -------
+nse_bhavcopy           2840   2686     153                                    1                                  
+nse_indices            2840   2686     153                                    1                                  
+nse_corporate_actions  50     49       1                                                                         
+nse_results            50     48       2                                                                         
+nse_board_meetings     50     50                                                                                 
+nse_announcements      550    524      26                                                                        
+nse_pdfs               14     14                                                                                 
+nse_insider            550    346      204                                                                       
+nse_pledges            50              50                                                                        
+nse_shareholding       50     50                                                                                 
+nse_fii_dii            1      1                                                                                  
+fred                   5      5                                                                                  
+rbi_policy             1      1                                                                                  
+gdelt_raw              96     8                 88                                                               
+===== 13:36:49 review
+task  source                 key             status        severity  check                     details                                                                                             
+----  ---------------------  --------------  ------------  --------  ------------------------  ----------------------------------------------------------------------------------------------------
+1377  nse_bhavcopy           2020-07-13      needs_review  error     date_mismatch             {"file_dates": ["None"]}                                                                            
+3134  nse_indices            2016-06-20      needs_review  error     http_404                  http_404: No file for trading day 2016-06-20                                                        
+2188  nse_bhavcopy           2023-08-21      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+2189  nse_bhavcopy           2023-08-22      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+2190  nse_bhavcopy           2023-08-23      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+2191  nse_bhavcopy           2023-08-24      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+2192  nse_bhavcopy           2023-08-25      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+2193  nse_bhavcopy           2023-08-28      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+2194  nse_bhavcopy           2023-08-29      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+2195  nse_bhavcopy           2023-08-30      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+2196  nse_bhavcopy           2023-08-31      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+2197  nse_bhavcopy           2023-09-01      success       warn      missing_symbol            {"symbols": ["JIOFIN"]}                                                                             
+41    nse_corporate_actions  RELIANCE        success       warn      manual_adjustment_needed  {"type": "rights", "subject": "Rights 1:15 @ Premium Rs 1247", "ex_date": "2020-05-13"}             
+41    nse_corporate_actions  RELIANCE        success       warn      manual_adjustment_needed  {"type": "demerger", "subject": "Demerger", "ex_date": "2023-07-20"}                                
+5833  nse_corporate_actions  ADANIENT        success       warn      manual_adjustment_needed  {"type": "demerger", "subject": "Scheme Of Arrangement", "ex_date": "2018-04-05"}                   
+5833  nse_corporate_actions  ADANIENT        success       warn      manual_adjustment_needed  {"type": "demerger", "subject": "Scheme Of Arrangement", "ex_date": "2018-09-06"}                   
+5833  nse_corporate_actions  ADANIENT        success       warn      manual_adjustment_needed  {"type": "rights", "subject": "Rights 3:25 @ Premium Rs 1799/-", "ex_date": "2025-11-17"}           
+5842  nse_corporate_actions  BHARTIARTL      success       warn      manual_adjustment_needed  {"type": "rights", "subject": "Rights 19:67 @ Premium Rs 215 Per Share", "ex_date": "2019-04-23"}   
+5842  nse_corporate_actions  BHARTIARTL      success       warn      manual_adjustment_needed  {"type": "rights", "subject": "Rights 1:14 @ Premium Rs 530/-", "ex_date": "2021-09-27"}            
+5849  nse_corporate_actions  GRASIM          success       warn      manual_adjustment_needed  {"type": "demerger", "subject": "Scheme Of Arrangement", "ex_date": "2017-07-19"}                   
+5849  nse_corporate_actions  GRASIM          success       warn      manual_adjustment_needed  {"type": "rights", "subject": "Rights 6:179 @ Premium Rs 1810/-", "ex_date": "2024-01-10"}          
+5853  nse_corporate_actions  HINDUNILVR      success       warn      manual_adjustment_needed  {"type": "demerger", "subject": "Demerger", "ex_date": "2025-12-05"}                                
+5856  nse_corporate_actions  ITC             success       warn      manual_adjustment_needed  {"type": "demerger", "subject": "Demerger", "ex_date": "2025-01-06"}                                
+5869  nse_corporate_actions  SHRIRAMFIN      success       warn      manual_adjustment_needed  {"type": "rights", "subject": "Rights 3:26 @ Premium Rs 560/-", "ex_date": "2020-07-09"}            
+5871  nse_corporate_actions  TATACONSUM      success       warn      manual_adjustment_needed  {"type": "rights", "subject": "Rights 1:26 @ Premium Rs 817/-", "ex_date": "2024-07-26"}            
+5872  nse_corporate_actions  TATASTEEL       success       warn      manual_adjustment_needed  {"type": "rights", "subject": "Rights - 4:25 Fully Paid Up Shares @ Premium Rs 500/- Per Share / 2:2
+5875  nse_corporate_actions  TMPV            success       warn      manual_adjustment_needed  {"type": "demerger", "subject": "Demerger", "ex_date": "2025-10-14"}                                
+46    nse_results            RELIANCE        success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+47    nse_results            HDFCBANK        success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+48    nse_results            INFY            success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+49    nse_results            TCS             success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+50    nse_results            LT              success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5878  nse_results            ADANIENT        success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5879  nse_results            ADANIPORTS      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5880  nse_results            APOLLOHOSP      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5881  nse_results            ASIANPAINT      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5882  nse_results            AXISBANK        success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5883  nse_results            BAJAJ-AUTO      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5884  nse_results            BAJAJFINSV      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5885  nse_results            BAJFINANCE      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5886  nse_results            BEL             success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5887  nse_results            BHARTIARTL      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5888  nse_results            BSE             success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5889  nse_results            CIPLA           success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5890  nse_results            COALINDIA       success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5891  nse_results            DRREDDY         success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5892  nse_results            EICHERMOT       success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5893  nse_results            ETERNAL         success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5894  nse_results            GRASIM          success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5895  nse_results            HCLTECH         success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5897  nse_results            HINDALCO        success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5898  nse_results            HINDUNILVR      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5899  nse_results            ICICIBANK       success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5900  nse_results            INDIGO          success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5901  nse_results            ITC             success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5902  nse_results            JIOFIN          success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5903  nse_results            JSWSTEEL        success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5904  nse_results            KOTAKBANK       success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5905  nse_results            M&M             success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5906  nse_results            MARUTI          success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5907  nse_results            MAXHEALTH       success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5908  nse_results            NESTLEIND       success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5909  nse_results            NTPC            success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5910  nse_results            ONGC            success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5911  nse_results            POWERGRID       success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5913  nse_results            SBIN            success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5914  nse_results            SHRIRAMFIN      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5915  nse_results            SUNPHARMA       success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5916  nse_results            TATACONSUM      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5917  nse_results            TATASTEEL       success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5918  nse_results            TECHM           success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5919  nse_results            TITAN           success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5920  nse_results            TMPV            success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5921  nse_results            TRENT           success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+5922  nse_results            ULTRACEMCO      success       info      results_list_stale        {"latest_quarter": "2024-12-31"}                                                                    
+96    rbi_policy             rbi_policy.csv  success       info      empty_manual_file         {"file": "data/manual/rbi_policy.csv"}                                                              
+
+2 blocked task item(s), 74 warning(s)/note(s).
+Resolve with: python -m src.ingest resolve TASK --decision {retry|fixed_parser|accept_gap|use_fallback|ignore|acknowledge} --note "..."

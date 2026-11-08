@@ -10,6 +10,10 @@ venv/
 .pytest_cache/
 .ruff_cache/
 
-# Data: everything except the small hand-made files in data/manual/
+# Data: raw downloads stay local (570 MB, re-downloadable). Shared in git: hand-made files,
+# the clean Parquet tables, the download tracker and the run logs.
 data/*
 !data/manual/
+!data/lake/
+!data/ingest.sqlite
+!data/logs/
