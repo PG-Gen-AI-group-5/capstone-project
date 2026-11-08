@@ -246,8 +246,10 @@ class Tracker:
                 before = self.conn.total_changes
                 self.conn.executemany(
                     "UPDATE tasks SET stage='download', status='pending', attempts=0, next_retry_at=NULL, "
-                    "url=?, updated_at=? WHERE source=? AND task_key=? AND status != 'running'",
-                    [(s.url, now, source, s.task_key) for s in specs])
+                    "period_start=?, period_end=?, url=?, expected_bytes=?, expected_md5=?, updated_at=? "
+                    "WHERE source=? AND task_key=? AND status != 'running'",
+                    [(_period(s.period_start), _period(s.period_end), s.url, s.expected_bytes, s.expected_md5,
+                      now, source, s.task_key) for s in specs])
                 refreshed = self.conn.total_changes - before
             before = self.conn.total_changes
             self.conn.executemany(

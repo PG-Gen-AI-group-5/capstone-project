@@ -29,6 +29,15 @@ def test_refresh_resets_finished_tasks(ctx):
     assert ctx.tracker.get_task(task.task_id).status == "pending"
 
 
+def test_refresh_extends_the_date_range(ctx):
+    task = plan_one(ctx)
+    ctx.tracker.complete(task.task_id, "success")
+    ctx.tracker.plan("fake", [TaskSpec(task_key=task.task_key, period_start=date(2016, 1, 1),
+                                       period_end=date(2026, 11, 8))], refresh=True)
+    t = ctx.tracker.get_task(task.task_id)
+    assert (t.period_start, t.period_end) == ("2016-01-01", "2026-11-08")
+
+
 def test_retryable_error_waits_then_goes_to_review(ctx):
     task = plan_one(ctx)
     assert ctx.tracker.fail(task.task_id, "timeout") == "retry_wait"
