@@ -55,6 +55,20 @@ class Config:
     def duckdb_path(self) -> Path:
         return self.data_dir / "market.duckdb"
 
+    @property
+    def derived_dir(self) -> Path:
+        return self.data_dir / "derived"
+
+    @property
+    def models_dir(self) -> Path:
+        return self.data_dir / "models"
+
+    def period(self, name: str) -> tuple[date, date | None]:
+        """Inclusive (start, end) of a named period; end None means up to the latest data."""
+        start, end = self.raw["periods"][name]
+        as_date = lambda v: v if isinstance(v, date) or v is None else date.fromisoformat(str(v))
+        return as_date(start), as_date(end)
+
     # ---- helpers ----
     def start_date(self, name: str) -> date:
         value = self.raw["start_dates"][name]
