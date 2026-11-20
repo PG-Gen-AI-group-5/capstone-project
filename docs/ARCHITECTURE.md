@@ -50,7 +50,7 @@ capstone-project/
 │   ├── catalysts/ calendar.py                                       7.1–7.4
 │   ├── retrieval/ chunk.py embed.py index.py search.py citations.py 8.1–8.5
 │   ├── memory/    events.py                                         9.1–9.3
-│   ├── models/    base.py registry.py walkforward.py baselines.py arima.py lstm.py tft.py __main__.py   16.3–16.9
+│   ├── models/    data.py base.py registry.py walkforward.py baselines.py arima.py sequence.py lstm.py tft.py __main__.py   16.3–16.9
 │   ├── llm/       client.py cache.py budget.py prompts/<agent>/v<N>.md                               11.1–11.4
 │   ├── agents/    planner.py retriever.py bull.py bear.py forecaster.py critic.py exit_monitor.py    12.1–12.9
 │   ├── graph/     state.py build.py routing.py                      13.1–13.3
@@ -129,6 +129,14 @@ python -m src.pipeline run all --from ... --to ...
 python -m src.pipeline status            # last build of each stage, its date range and inputs
 ```
 
+Until `src.pipeline` exists, the modelling stages run through `python -m src.models`:
+
+```
+python -m src.models prepare                 # prices_adj -> features -> labels
+python -m src.models train --model arima     # walk-forward over the validation year; --model all for every model
+python -m src.models evaluate                # metrics table for every model with saved forecasts
+```
+
 **Live daily schedule** (task 6.9). Run the evening steps after FII/DII are published (20:00 IST):
 
 1. **Evening, about 20:30 IST:** `ingest` → `prices_adj` → `features` → `labels` (for past days) → `catalysts` → `chunks`.
@@ -160,38 +168,52 @@ When each kind of data becomes usable:
 
 ### Forecast table (written by every model)
 
-`data/derived/forecasts/<model>/` has one row per model, symbol, `as_of` and horizon:
+`data/derived/forecasts/<model>/<period>.parquet` has one row per model, symbol, day and horizon:
 
 | Column | Meaning |
 |---|---|
 | `model`, `model_version` | Model name and the version recorded in its manifest |
 | `symbol` | NSE symbol |
-| `as_of` | 08:30 IST on trading day `d`, stored as UTC |
+| `trade_date` | Trading day `d` the forecast is for (entry at its open) |
+| `as_of` | 08:30 IST on `d`, stored as UTC |
 | `horizon_days` | 1, 5 or 10 |
-| `p_up` | Probability that the horizon return is positive |
-| `direction` | +1 or −1 |
-| `exp_return` | Expected horizon return (decimal), if the model gives one |
-| `vol_forecast` | Forecast standard deviation of daily log returns over the horizon (not annualised) |
-| `train_end` | Last date whose label was used in training |
+| `p_up` | Probability that the horizon return is positive (NaN for volatility-only models) |
+| `direction` | +1, −1, or NaN for volatility-only models |
+| `exp_return` | Expected horizon log return, if the model gives one |
+| `vol_forecast` | Forecast realised volatility: root mean square of daily log returns over the horizon (not annualised) |
+| `train_end` | Last date any training label looked at; always before `trade_date` (checked by `check_forecasts`) |
+
+### Labels (`src/labels/labels.py`)
+
+For the row of day `d` and horizon `h` (days `d .. d+h−1`), from adjusted prices:
+
+| Column | Meaning |
+|---|---|
+| `fwd_ret_h` | Log return from the open of `d` (`labels.entry: open`) or the close of `d−1` (`close`) to the close of `d+h−1` |
+| `up_h` | 1 if `fwd_ret_h > 0`, else 0 |
+| `fwd_vol_h` | Root mean square of the daily close-to-close log returns of days `d .. d+h−1` |
+| `end_h` | Date of `d+h−1`, used by the gap rule |
 
 ### Model interface (`src/models/base.py`)
 
-```python
-class ForecastModel(Protocol):
-    name: str
-    horizons: tuple[int, ...]                                  # (1, 5, 10)
+Every model sees one aligned panel (`src/models/data.py`): features and labels for every stock and trading day. The runner passes boolean row masks.
 
-    def fit(self, features: pd.DataFrame, labels: pd.DataFrame) -> None: ...
-    def predict(self, features: pd.DataFrame) -> pd.DataFrame: ...   # forecast-table rows
-    def save(self, path: Path) -> None: ...
-    @classmethod
-    def load(cls, path: Path) -> "ForecastModel": ...
+```python
+class ForecastModel(ABC):
+    name: str
+    def __init__(self, cfg: Config, params: dict | None = None): ...
+    def fit(self, panel: Panel, train_mask: np.ndarray) -> None: ...          # labels only from these rows
+    def predict(self, panel: Panel, mask: np.ndarray) -> pd.DataFrame: ...    # forecast-table rows
+    def save(self, folder: Path) -> None: ...                                 # one folder per walk-forward fold
 ```
+
+The LSTM and TFT also have `load(cfg, folder, panel)` to rebuild a saved fold's model. Register new models in `src/models/registry.py`.
 
 ### Walk-forward (`src/models/walkforward.py`)
 
-- **Window:** expanding, refitted on a schedule set in `config.yaml` (for example monthly).
-- **The gap rule:** a training example dated `t` with horizon `h` uses prices up to `t+h`. So for predictions starting at `T`, training uses only examples with `t + h < T`. This gap is in trading days.
+- **Window:** expanding, refitted on the schedule in `models.refit` (ARIMA monthly; the others yearly).
+- **The gap rule:** a training row for day `t` looks at prices up to `end_h` (day `t+h−1`). For predictions starting at `T`, a row trains only if its `end_10` is before `T`.
+- **Early stopping (LSTM, TFT):** the last `early_stop_days` of the training rows are held out, with the same gap before them.
 - **Validation:** the same procedure over 2023.
 - **Test:** the same procedure over 2024 onwards, run once by task 16.9.
 
