@@ -662,7 +662,7 @@ SELECT source, status, COUNT(*) FROM tasks GROUP BY source, status;
 5. **GDELT history route:** raw files (~761 GB to stream) or BigQuery (measure bytes scanned per month with a dry run).
 6. **Board meetings history:** check whether date parameters return meetings older than the latest 20.
 7. **Nifty 200 prices:** collect or not, based on whether the LSTM needs more training data.
-8. **News aliases:** the default aliases in `universe.csv` are formal company names (for example "adani ports and special economic zone"); GDELT often uses shorter names. Review them before the full GDELT run.
+8. **News aliases:** the default aliases in `universe.csv` are formal company names (for example "adani ports and special economic zone"); GDELT often uses shorter names. Review them before the full GDELT run. Pilot precision (EDA 04): only 1 of the 14 filtered June 2024 rows has the matched company's name in its headline (for example a NASA spacesuit story matched to TRENT).
 
 9. **Promoter block sales:** the insider (PIT) endpoint returned nothing for TCS in 2023–2024, although Tata Sons sold TCS shares in March 2024. Such sales are disclosed under SEBI's takeover regulations (SAST), which NSE lists separately; consider adding that endpoint.
 10. **Very long PDFs:** important announcements include annual reports (one Infosys PDF in the pilot had 298 pages, ~1 million characters). Decide whether to cap pages or skip annual reports before the full PDF run.
