@@ -84,10 +84,11 @@ def test_first_informed_day_follows_the_time_rule():
         "2024-06-07 16:00",   # Friday evening -> Monday
         "2024-06-08 07:00",   # Saturday morning -> Monday
         "2024-06-10 20:00",   # after the last calendar day -> unknown
+        "2024-05-31 20:00",   # before the first calendar day -> unknown, not 3 Jun
     )
     out = inv.first_informed_day(ts, DAYS)
     assert [None if pd.isna(x) else str(x.date()) for x in out] == [
-        "2024-06-03", "2024-06-04", "2024-06-10", "2024-06-10", None]
+        "2024-06-03", "2024-06-04", "2024-06-10", "2024-06-10", None, None]
 
 
 def test_large_moves_marks_corporate_action_days():

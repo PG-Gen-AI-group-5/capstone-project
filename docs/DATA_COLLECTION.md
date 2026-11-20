@@ -681,6 +681,7 @@ SELECT source, status, COUNT(*) FROM tasks GROUP BY source, status;
 22. **Tracker `coverage` table** was last built for June 2024 only (1,045 rows); run `python -m src.ingest coverage` after the backfill. (EDA 01)
 23. **DuckDB views store absolute paths:** `data/market.duckdb` built on one machine fails on another until `python -m src.ingest views` is re-run. Consider relative paths. (EDA 01)
 24. **Results without a broadcast time:** 408 results rows (7.3%) have no `broadcast_at`; all are 2005–2007 quarters, so there's no impact on 2016+. (EDA 01)
+25. **Results broadcast time is often not the first public time:** the matching "Financial Result Updates" announcement comes a median 21 hours before `financial_results.broadcast_at`; for 26% of 2016–2023 results it is one trading day earlier, and for 29% 2–10 days earlier, and the price reaction follows the announcement. Use the earliest of the Financial Result Updates / Outcome of Board Meeting announcement times as the results time. (EDA 03)
 
 Resolved: FRED `known_from` (all five series are market prices, usable the next day; see step 10).
 

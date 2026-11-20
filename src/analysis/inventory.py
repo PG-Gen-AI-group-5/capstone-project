@@ -187,6 +187,8 @@ def first_informed_day(ts: pd.Series, days: pd.DatetimeIndex) -> pd.Series:
     """First trading day whose 08:30 IST forecast may use each record (published_at < as_of).
 
     Published before 08:30 IST on a trading day -> that day; otherwise the next trading day.
+    NaT when the record falls outside `days` (before its first day, or after its last), since the true
+    first trading day can't be known from this calendar.
     """
     t = pd.Series(ts)
     if isinstance(t.dtype, pd.DatetimeTZDtype):
@@ -198,7 +200,7 @@ def first_informed_day(ts: pd.Series, days: pd.DatetimeIndex) -> pd.Series:
     i_same = np.searchsorted(arr, day.values, side="left")    # first trading day >= day
     i_next = np.searchsorted(arr, day.values, side="right")   # first trading day > day
     idx = np.where(before.values, i_same, i_next)
-    valid = t.notna().values & (idx < len(arr))
+    valid = t.notna().values & (idx < len(arr)) & (day.values >= arr[0])
     out = np.full(len(t), np.datetime64("NaT"), dtype="datetime64[ns]")
     out[valid] = arr[idx[valid]]
     return pd.Series(out, index=t.index)
