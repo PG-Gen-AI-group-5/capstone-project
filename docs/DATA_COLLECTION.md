@@ -181,6 +181,10 @@ def bhavcopy_url(d: date) -> str:
 
 **Keep** rows `Nifty 50` and `India VIX`. The Nifty P/E and P/B columns are a free valuation feature.
 
+**Dates:** store the trading day from the file name, not the `Index Date` column. Most files write `Index Date` as DD-MM-YYYY, but the files for 6, 10 and 11 Apr 2023 write MM-DD-YYYY (`04-10-2023` = 10 Apr). The parser accepts either reading and blocks a file whose date matches neither.
+
+**Missing file:** NSE has no file for 20 Jun 2016, a trading day (404 on both archive hosts). That day's Nifty 50 and India VIX come from yfinance (`^NSEI`, `^INDIAVIX`), with `source = 'yfinance'`.
+
 **Save:** `data/raw/nse_indices/{YYYY}/` → `data/lake/index_daily/`.
 
 ---
@@ -662,7 +666,12 @@ SELECT source, status, COUNT(*) FROM tasks GROUP BY source, status;
 
 9. **Promoter block sales:** the insider (PIT) endpoint returned nothing for TCS in 2023–2024, although Tata Sons sold TCS shares in March 2024. Such sales are disclosed under SEBI's takeover regulations (SAST), which NSE lists separately; consider adding that endpoint.
 10. **Very long PDFs:** important announcements include annual reports (one Infosys PDF in the pilot had 298 pages, ~1 million characters). Decide whether to cap pages or skip annual reports before the full PDF run.
+11. **Pledging endpoint returned nothing:** on Sun 8 Nov 2026, `corporate-pledgedata` returned an empty list for all 50 stocks and for every parameter tried, although the pilot on Fri 30 Oct got data. Re-run on a weekday (`plan --source nse_pledges --refresh`, then `run`). If it is still empty, find the new endpoint.
+12. **Insider data thins out after 2021:** rows per year drop from ~19,000 (2016) to ~1,500 (2025), and only 8 of 50 stocks have any 2026 rows. Check whether NSE publishes newer disclosures elsewhere (for example the system-driven disclosures) before relying on insider features in the test period.
+13. **Rights issues and demergers:** 15 events in the Nifty 50 (for example Reliance 2020 rights and 2023 demerger, ITC 2025 demerger, HUL 2025 demerger, Tata Motors 2025 demerger) need a price adjustment factor worked out by hand. Splits and bonuses are adjusted automatically. See `review` (check `manual_adjustment_needed`).
 
 Resolved: FRED `known_from` (all five series are market prices, usable the next day; see step 10).
+
+**Backfill result (8 Nov 2026, Nifty 50):** prices 2,687 trading days (1 Jan 2016 → 6 Nov 2026), index 2,687 days, corporate actions 49 stocks, results 48, board meetings 50, announcements 524 stock-years with data, insider 346 stock-years, shareholding 50. Fixed during the run: one bhavcopy (13 Jul 2020) writes a 2-digit year; three index files write the date month-first; the 20 Jun 2016 index file is missing (filled from yfinance). JIOFIN has no EQ rows for its first 10 days (21 Aug – 1 Sep 2023) because it traded in the BE series.
 
 **Pilot result (30 Oct 2026, 5 stocks, June 2024):** every source ran end to end. Prices 950/950 stock-days, index 19/19 days (17 Jun holiday → `no_data`), corporate actions parsed correctly (splits and bonuses; Reliance's 2020 rights issue and 2023 demerger flagged for manual adjustment), 707 announcements for Jan–Jun 2024 (144 important), 14 PDFs extracted (none scanned), 8 GDELT files filtered. FRED waits for an API key.

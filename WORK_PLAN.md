@@ -209,6 +209,7 @@ Each agent needs: prompt, input/output schema, tools, unit tests on sample data.
 | 16.5 | Historical-volatility baseline (for the volatility error comparison) | Results in the common format |
 | 16.6 | ARIMA | Results in the common format |
 | 16.7 | LSTM: one shared model across stocks (trained on Nifty 200 if collected), evaluated on the Nifty 50 | Results in the common format |
+| 16.7b | TFT (Temporal Fusion Transformer): one shared model across stocks, with the catalyst calendar (results dates, RBI meetings, expiry) as known future inputs; also the base forecast passed to the Forecaster agent | Results in the common format; forecast available to 12.6 |
 | 16.8 | Turn baseline outputs into trade signals the backtester accepts | All baselines run through the same backtester |
 | 16.9 | **Freeze baseline results** | Tagged; this is the bar the agents must beat |
 
@@ -279,7 +280,7 @@ Milestones are in build order: each one depends on the ones before it. Each ends
 | **M5: Text and market data** | 3.1–3.9, 4.2–4.5, 5.1–5.5, 6.7 | Announcements, results, flows, macro and news loaded; leakage tests pass |
 | **M6: Retrieval, setups, calendar** | 7.1–7.4, 8.1–8.6, 10.2–10.5 | Cited search works with no future leaks; setups tested alone; catalyst query works |
 | **M7: Agents v1** | 12.1–12.8, 13.3 | 5 stocks × 1 real day run end to end with real evidence; Critic rejects a planted future document |
-| **M8: Full pipeline** | 12.9, 13.5–13.6, 14.3–14.4, 9.1–9.3, 16.5–16.7, 16.9, 6.9–6.10, 19.5–19.6, 19.9 | One month of history runs unattended; Exit Monitor closes trades; baselines frozen; data status page live |
+| **M8: Full pipeline** | 12.9, 13.5–13.6, 14.3–14.4, 9.1–9.3, 16.5–16.7b, 16.9, 6.9–6.10, 19.5–19.6, 19.9 | One month of history runs unattended; Exit Monitor closes trades; baselines frozen; data status page live |
 | **M9: Agent backtest and extras** | 15.1–15.2, 18.4–18.5, 19.7–19.8 | Full agent backtest done; ablation table; what-if demo works |
 | **M10: Evaluation** | 18.3, 18.6–18.9 | All results final with intervals; rating study done; code freeze |
 | **M11: Delivery** | 20.1–20.6 | Report, video and slides done; clean-clone check passes |
@@ -299,6 +300,7 @@ M4 (baselines) and M5 (text data) don't depend on each other and can be built at
 | News | GDELT as a secondary source; NSE announcements are the main evidence |
 | Storage | Raw files → Parquet + DuckDB; SQLite download tracker |
 | Brief alignment | Next-day and next-week direction metrics reported alongside the trade plans |
+| Models | ARIMA (statistical), LSTM and TFT (deep learning), and the 7-agent system using TFT as its base forecast; plus the simple baselines (buy-and-hold, moving-average crossover, historical volatility) |
 
 **Still open**
 
