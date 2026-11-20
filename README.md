@@ -4,6 +4,9 @@ Capstone project: a multi-agent system that produces explainable 3–10 day swin
 
 - Work plan: [WORK_PLAN.md](WORK_PLAN.md)
 - Data sources, storage and the download tracker: [docs/DATA_COLLECTION.md](docs/DATA_COLLECTION.md)
+- Code structure, pipeline stages and interfaces: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Prompt templates for EDA, model training and pipeline work with a coding agent: [docs/PROMPTS.md](docs/PROMPTS.md)
+- Project rules for coding agents: [CLAUDE.md](CLAUDE.md)
 
 ## Setup
 
