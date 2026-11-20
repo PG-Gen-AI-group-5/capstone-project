@@ -1,0 +1,4 @@
+model,horizon_days,n,accuracy,f1_up,actual_up,predicted_up,brier,log_loss,n_vol,vol_mae,vol_rmse
+hist_vol,1,,,,,,,,11863,0.008766968883405429,0.01288842906667044
+hist_vol,5,,,,,,,,11863,0.005749558995072538,0.009378699866872058
+hist_vol,10,,,,,,,,11863,0.004986104879883099,0.008524281244102264

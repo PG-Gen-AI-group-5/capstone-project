@@ -1,1 +1,1 @@
-"""Helpers for the EDA notebooks (notebooks/eda/)."""
+"""Helpers for the EDA and model notebooks."""

@@ -17,6 +17,8 @@ Each one runs top to bottom on a fresh kernel and ends with a "Findings" cell.
 
 **Returns** are daily log returns, quoted in % of price, unless stated otherwise.
 
+**Price basis.** The EDA ran on raw prices, dropping each stock's return on every corporate-action ex-date. Adjusted prices (task 2.4, `src/store/adjust.py`) reached `main` after the notebooks were run. E02 and E03 should be re-run on them once `data/derived/prices_adj` is built and the 15 manual factors are hand-checked (open item 13).
+
 ---
 
 ## 1. Summary
@@ -71,31 +73,31 @@ The event tables are much less even than prices. Insider rows fall from 19,236 i
 
 ## 3. Data quality
 
-E01 reconciled 33 gaps and oddities against the known open items and found 14 new ones (E01 §5g). E03 and E04 added one each. All are listed in "Open items" in [docs/DATA_COLLECTION.md](../../docs/DATA_COLLECTION.md) (items 8 and 13–25).
+E01 reconciled 33 gaps and oddities against the known open items and found 14 new ones (E01 §5g). E03 and E04 added one each. All are listed in "Open items" in [docs/DATA_COLLECTION.md](../../docs/DATA_COLLECTION.md) (items 8, 13 and 15–26).
 
 ### Fixes applied during the EDA
-- **DuckDB views.** `data/market.duckdb` stored absolute paths from another machine, so all 13 views failed until rebuilt with `python -m src.ingest views` (E01 §5g; open item 23).
+- **DuckDB views.** `data/market.duckdb` stored absolute paths from another machine, so all 13 views failed until rebuilt with `python -m src.ingest views` (E01 §5g; open item 24).
 - **Event-day helper.** `first_informed_day` assigned records published before the calendar's first day to that day. Results from 2005–2015 were landing on 1 Jan 2016. They now get no day (fixed in E03, with a test). One E01 number changed: results that inform the next trading day went from 99.6% to 99.4% (E01 §4).
 
 ### Open gaps, by effect on training (2016–2023) first
 
 | Gap | Evidence | Effect on the project | Fix (open item) |
 |---|---|---|---|
-| No adjusted prices yet | 604 ex-date returns dropped, 0.67% of stock-days (E02 setup) | Every return analysis drops ex-dates. 262 of 1,425 results windows (18%) are lost, biased toward quarters with no dividend in the window (E03 §3) | Task 2.4; 15 rights/demergers need manual factors (13) |
+| EDA ran on raw prices | 604 ex-date returns dropped, 0.67% of stock-days (E02 setup) | Every return analysis drops ex-dates. 262 of 1,425 results windows (18%) are lost, biased toward quarters with no dividend in the window (E03 §3) | Task 2.4 code is now on `main`: build `prices_adj`, hand-check the 15 factors (13), re-run E02 and E03 |
 | TATACONSUM and SHRIRAMFIN history before renames | Prices start 27 Feb 2020 and 20 Dec 2022 (E01 §5b) | About 4 and 7 years of training data missing; SHRIRAMFIN is left out of train-only statistics (E02 §3) | Map TATAGLOBAL and SRTRANSFIN (16) |
-| Results timestamp often late | "Financial Result Updates" a median 21 h earlier; reaction on our day −1 (2.79% vs 1.63%) when it is 1 day earlier (E03 §4) | Results event dates are late for about 55% of results: safe for the time rule, but results features and event memory lose most of the reaction | Use the announcement time (25) |
-| Weekday Muhurat sessions marked closed | 6 days with prices, 2017–2025 (E01 §5a) | Trading-day counts (horizons, event days) are off by one around Diwali if the calendar is used | Add to calendar overrides (15) |
-| Event data missing for whole stocks | NESTLEIND 0 announcements 2016–2022; no insider rows for BSE, ETERNAL, NESTLEIND, POWERGRID; no results for HDFCLIFE, SBILIFE (E01 §5e–f) | Event features and event memory are empty for these stocks | Check the endpoints by hand (17) |
-| Shareholding from 2021 only | 1 stock or fewer a year before 2021, 48 in 2021 (E01 §5f) | No shareholding features in most of train | Find older quarters or use 2021+ only (18) |
+| Results timestamp often late | "Financial Result Updates" a median 21 h earlier; reaction on our day −1 (2.79% vs 1.63%) when it is 1 day earlier (E03 §4) | Results event dates are late for about 55% of results: safe for the time rule, but results features and event memory lose most of the reaction | Use the announcement time (26) |
+| Weekday Muhurat sessions marked closed | 6 days with prices, 2017–2025 (E01 §5a) | Trading-day counts (horizons, event days) are off by one around Diwali if the calendar is used | Add to calendar overrides (17) |
+| Event data missing for whole stocks | NESTLEIND 0 announcements 2016–2022; no insider rows for BSE, ETERNAL, NESTLEIND, POWERGRID; no results for HDFCLIFE, SBILIFE (E01 §5e–f) | Event features and event memory are empty for these stocks | Check the endpoints by hand (18) |
+| Shareholding from 2021 only | 1 stock or fewer a year before 2021, 48 in 2021 (E01 §5f) | No shareholding features in most of train | Find older quarters or use 2021+ only (19) |
 | Insider data thins after 2021 | 19,236 rows (2016) → 2,127 (2023) → 1,490 (2025), by disclosure year (E03 §6) | Not usable as a feature in validation or test | Open items 9 and 12 |
-| Corporate actions have no announcement time | `published_at` 100% null (E01 §4) | The catalyst calendar can't place them in time | Use announcements (19) |
-| Nifty change columns wrong on 13 Mar 2023 | points_change −435.30 measured from 9 Mar (E01 §5h) | A validation-year return is wrong if `change_pct` is used | Always use closes (20) |
-| 3 ADANIENT moves > 20% with no corporate action | 26 Apr 2017, 20 May 2019, 25 Aug 2020 (E01 §5c) | Must be confirmed before task 2.4's jump check | (21) |
-| Missing session, Sun 1 Feb 2026 | 41 of 50 stocks' NSE prev_close disagrees with our close; the Nifty's implied previous close is 24,825.45 vs our 25,320.65 (E01 §5h) | Test period: a missing day for every stock, and a wrong 1-day return on 2 Feb 2026 | Add the day and download it (14) |
+| Corporate actions have no announcement time | `published_at` 100% null (E01 §4) | The catalyst calendar can't place them in time | Use announcements (20) |
+| Nifty change columns wrong on 13 Mar 2023 | points_change −435.30 measured from 9 Mar (E01 §5h) | A validation-year return is wrong if `change_pct` is used | Always use closes (21) |
+| 3 ADANIENT moves > 20% with no corporate action | 26 Apr 2017, 20 May 2019, 25 Aug 2020 (E01 §5c) | Must be confirmed before task 2.4's jump check | (22) |
+| Missing session, Sun 1 Feb 2026 | 41 of 50 stocks' NSE prev_close disagrees with our close; the Nifty's implied previous close is 24,825.45 vs our 25,320.65 (E01 §5h) | Test period: a missing day for every stock, and a wrong 1-day return on 2 Feb 2026 | Add the day and download it (15) |
 | Results list ends at the Dec 2024 quarter | 48 open `results_list_stale` reviews (E01 §3) | No results in most of the test period | Open item 1 |
 | RBI, FII/DII, news not collected | 0, 2 and 14 rows (E04 §4–6) | Those inputs can't be evaluated | Tasks 4.3, 4.1–4.2, 5.1–5.2 |
 | News matching is noisy | 1 of 14 pilot headlines names the matched company (E04 §6) | Without better matching, most "company news" would be unrelated | Fix aliases before the full run (8) |
-| Tracker coverage table out of date | Built for June 2024 only, 1,045 rows (E01 §3) | The backtest's gap list would be incomplete | Re-run `python -m src.ingest coverage` (22) |
+| Tracker coverage table out of date | Built for June 2024 only, 1,045 rows (E01 §3) | The backtest's gap list would be incomplete | Re-run `python -m src.ingest coverage` (23) |
 
 Two quality checks passed:
 - **Timestamps are good enough for the time rule.** 99.99% of announcements and 100% of results broadcast times carry a real time of day (E01 §4).
@@ -319,19 +321,19 @@ For level, partly. For stress, no:
 Tune with walk-forward folds inside 2016–2022 as well as 2023, and report validation results by regime.
 
 ### Data work to finish before training
-1. Adjusted prices (task 2.4), including the 15 manual factors.
+1. Adjusted prices (task 2.4). The code is on `main`; build `data/derived/prices_adj`, hand-check the 15 manual factors (open item 13), then re-run E02 and E03.
 2. The TATAGLOBAL and SRTRANSFIN histories (open item 16).
-3. The Muhurat sessions in the calendar (open item 15).
-4. The results time from the announcements (open item 25).
+3. The Muhurat sessions in the calendar (open item 17).
+4. The results time from the announcements (open item 26).
 5. The RBI decisions file (task 4.3), if RBI features are wanted.
-6. Before the test run: the 1 Feb 2026 session (open item 14).
+6. Before the test run: the 1 Feb 2026 session (open item 15).
 
 ---
 
 ## 8. Limitations
 
 - **Survivorship bias.** The universe is today's Nifty 50. Stocks that left the index in 2016–2023 are missing, which flatters returns and base rates.
-- **Raw prices.** Until task 2.4, returns drop every ex-date instead of adjusting. That removes 0.67% of stock-days and 18% of results windows, and it biases event samples toward windows without dividends.
+- **Raw prices.** The EDA ran before adjusted prices (task 2.4) reached `main`, so returns drop every ex-date instead of adjusting. That removes 0.67% of stock-days and 18% of results windows, and it biases event samples toward windows without dividends.
 - **One validation year.** 2023 is a single calm bull year. The test window (2024 onwards) is short and includes the missing 1 Feb 2026 session.
 - **Simple abnormal returns.** The event study subtracts the Nifty return without a beta, so high-beta stocks keep some market move in their abnormal returns.
 - **Multiple testing.** 15 event sets × several horizons are tested. A few "significant" directional results are expected by chance, and the two found are treated that way.

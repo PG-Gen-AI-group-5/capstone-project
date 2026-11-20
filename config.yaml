@@ -114,6 +114,69 @@ tracker:
   max_attempts: 3
   retry_base_sec: 300              # retry after 5 min, then 10, then 20
 
+# ---------------------------------------------------------------- modelling
+
+# Inclusive date ranges. Test-period results come only from the freeze tasks (16.9, 18.4).
+periods:
+  train: [2016-01-01, 2022-12-31]
+  validation: [2023-01-01, 2023-12-31]
+  test: [2024-01-01, null]         # null = latest data
+
+forecast_time_ist: "08:30"         # forecast for trading day d is made at 08:30 IST; entry at the 09:15 open
+
+labels:
+  horizons: [1, 5, 10]             # trading days; the trade-plan range is 3-10
+  # open: log return from the open of day d to the close of day d+h-1 (matches the trade entry)
+  # close: log return from the close of day d-1 to the close of day d+h-1 (time-series convention)
+  entry: open
+  # Volatility label: root mean square of daily close-to-close log returns over days d..d+h-1
+
+adjustment:
+  demerger_min_move: 0.01          # a scheme/demerger whose ex-date open moves less than this is treated as factor 1
+  jump_threshold: 0.20             # adjusted daily moves above this are listed in the jump report
+
+features:
+  min_history: 200                 # trading days a stock needs before its rows are used (EMA 200)
+
+models:
+  seed: 42
+  n_jobs: -1                       # parallel workers for per-stock models (ARIMA); -1 = all cores
+  refit:                           # how often walk-forward refits: monthly | quarterly | yearly
+    base_rate: yearly
+    ma_crossover: yearly
+    hist_vol: yearly
+    arima: monthly
+    lstm: yearly
+    tft: yearly
+  arima:
+    max_p: 2
+    max_q: 2
+  sequence:                        # shared by LSTM and TFT
+    window: 60                     # trading days of history per sample
+    batch_size: 512
+    max_epochs: 20
+    patience: 3                    # early stopping on the last part of the training window
+    early_stop_days: 120           # trading days at the end of the training window held out for early stopping
+    samples_per_epoch: 0           # random training samples per epoch; 0 = all
+    lr: 0.001
+    weight_decay: 0.0001
+    threads: 0                     # torch CPU threads; 0 = all cores
+  lstm:
+    hidden: 64
+    layers: 2
+    dropout: 0.2
+    symbol_dim: 8
+    sector_dim: 4
+  tft:
+    hidden: 32
+    heads: 4
+    dropout: 0.1
+    quantiles: [0.1, 0.25, 0.5, 0.75, 0.9]
+    sequence:                      # overrides of `sequence` for the TFT: ~2.5 s per batch of 512 on a 12-core CPU
+      window: 30
+      samples_per_epoch: 30000
+      max_epochs: 15
+
 # Market regime labels (src/features/regime.py). Each label for day d uses closes up to d-1.
 regime:
   trend_ema_span: 200              # Nifty 50 close vs its 200-day EMA

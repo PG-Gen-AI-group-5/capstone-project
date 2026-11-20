@@ -51,6 +51,17 @@ After pulling, run `python -m src.ingest views` once to create the DuckDB views 
 
 Raw downloads (`data/raw/`, about 570 MB) stay on the machine that ran the collection; they are only needed to re-parse after a parser fix. **One person runs the collection and commits `data/`**, so the tracker database never gets conflicting edits.
 
+## Models
+
+```
+pip install -e ".[dev,models,notebooks]"
+python -m src.models prepare                 # adjusted prices, features, labels -> data/derived/
+python -m src.models train --model all       # walk-forward over the validation year 2023
+python -m src.models evaluate                # metrics for every model
+```
+
+Models: `base_rate`, `ma_crossover`, `hist_vol`, `arima`, `lstm`, `tft`. Notebooks in `notebooks/models/` (10 → 15) explain each step and load saved forecasts instead of retraining. Figures and metric tables go to `report/figures/models/`. Test-period (2024+) forecasts need `--period test --freeze` and are made once, by task 16.9.
+
 ## Tests
 
 ```

@@ -1,1 +1,1 @@
-"""Feature builders (indicators, regimes, setups)."""
+"""Model inputs: technical indicators, market regime, macro and calendar features."""
