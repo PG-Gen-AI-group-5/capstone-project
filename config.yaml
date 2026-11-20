@@ -113,3 +113,10 @@ gdelt:
 tracker:
   max_attempts: 3
   retry_base_sec: 300              # retry after 5 min, then 10, then 20
+
+# Market regime labels (src/features/regime.py). Each label for day d uses closes up to d-1.
+regime:
+  trend_ema_span: 200              # Nifty 50 close vs its 200-day EMA
+  vix_band_period: [2016-01-01, 2022-12-31]   # VIX cut-points fitted on train only
+  vix_quantiles: [0.3333333, 0.6666667]       # terciles
+  vix_labels: [low, mid, high]
