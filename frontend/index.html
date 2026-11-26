@@ -89,7 +89,7 @@
       <div class="head-meta">
         <span class="pill" id="head-pill"><span class="live-dot" aria-hidden="true"></span><span id="head-clock">—</span></span>
         <span class="pill" id="provider-pill">—</span>
-        <span class="pill pill-sample" title="The desk replays past trading days as if they were live: each morning the agents see only data up to the previous close.">Replay of history</span>
+        <span class="pill pill-sample" id="mode-pill" title="The desk replays past trading days as if they were live: each morning the agents see only data up to the previous close.">Replay of history</span>
       </div>
     </header>
 
@@ -234,7 +234,29 @@
         <div class="kpi"><span class="kpi-label">Open P&amp;L</span><span class="kpi-value" id="t-unreal">—</span><span class="kpi-sub" id="t-unreal-sub"></span></div>
         <div class="kpi"><span class="kpi-label">Orders executed</span><span class="kpi-value" id="t-orders">—</span><span class="kpi-sub" id="t-orders-sub"></span></div>
       </div>
-      <article class="card">
+      <article class="card" id="holdings-card" hidden>
+        <header class="card-head"><div><h2>My positions</h2><p class="card-sub" id="holdings-sub">Trades you reported, checked every morning: stop and target since your last look, the holding period, and the Exit Monitor</p></div></header>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Stock</th>
+                <th scope="col" class="r">Qty</th>
+                <th scope="col" class="r">Bought</th>
+                <th scope="col" class="r">Last close</th>
+                <th scope="col" class="r">P&amp;L</th>
+                <th scope="col" class="r">Stop / target</th>
+                <th scope="col" class="r">Day</th>
+                <th scope="col">Today's advice</th>
+                <th scope="col"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="hold-body"></tbody>
+          </table>
+        </div>
+        <p class="form-error card-error" id="hold-error" role="alert"></p>
+      </article>
+      <article class="card replay-only">
         <header class="card-head"><div><h2>Open positions</h2><p class="card-sub">Delivery (CNC), held up to the plan's holding period. Stops and targets are checked every session.</p></div></header>
         <div class="table-wrap">
           <table class="table">
@@ -257,7 +279,7 @@
         <p class="empty-state" id="pos-empty" hidden>No open positions.</p>
         <p class="form-error card-error" id="pos-error" role="alert"></p>
       </article>
-      <article class="card">
+      <article class="card replay-only">
         <header class="card-head"><div><h2>Orders for the open</h2><p class="card-sub" id="pending-sub">Your buys and exits, filled at the next session's open</p></div></header>
         <div class="table-wrap">
           <table class="table">
@@ -266,7 +288,7 @@
           </table>
         </div>
       </article>
-      <article class="card">
+      <article class="card replay-only">
         <header class="card-head"><div><h2>Executed orders</h2><p class="card-sub" id="orders-sub">The last session's trade book, newest first</p></div></header>
         <div class="table-wrap">
           <table class="table">
@@ -414,11 +436,16 @@
       <h2 id="dlg-title">New desk</h2>
       <p class="card-sub">The desk starts on the morning of the first trading day you pick and moves forward one day at a time.</p>
     </div>
+    <div class="seg seg-wide" id="f-mode" role="group" aria-label="Desk type">
+      <button type="button" data-value="live" aria-pressed="true">Live suggestions</button>
+      <button type="button" data-value="replay" aria-pressed="false">Replay history</button>
+    </div>
+    <p class="hint" id="f-mode-hint"></p>
     <div class="field">
       <label for="f-name">Name</label>
       <input class="input" id="f-name" maxlength="60" required>
     </div>
-    <div class="field-row">
+    <div class="field-row" id="f-dates">
       <div class="field">
         <label for="f-start">First day</label>
         <input class="input" id="f-start" type="date" required>
@@ -430,7 +457,7 @@
     </div>
     <span class="hint" id="f-window"></span>
     <div class="field">
-      <label for="f-capital">Starting capital (₹)</label>
+      <label for="f-capital" id="f-capital-label">Starting capital (₹)</label>
       <input class="input" id="f-capital" type="number" min="10000" step="10000" required>
     </div>
     <div class="field">
@@ -442,6 +469,59 @@
     <div class="dialog-actions">
       <button type="button" class="btn btn-secondary" id="desk-cancel">Cancel</button>
       <button type="submit" class="btn btn-primary" id="desk-submit">Create desk</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dialog" id="trade-dialog" aria-labelledby="td-title">
+  <form class="form" id="trade-form" method="dialog" novalidate>
+    <div>
+      <h2 id="td-title">I bought</h2>
+      <p class="card-sub" id="td-sub"></p>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="td-date" id="td-date-label">Date</label>
+        <input class="input" id="td-date" type="date" required>
+      </div>
+      <div class="field">
+        <label for="td-price" id="td-price-label">Price (₹)</label>
+        <input class="input" id="td-price" type="number" min="0.01" step="0.05" required>
+      </div>
+    </div>
+    <div class="field-row" id="td-buy-fields">
+      <div class="field">
+        <label for="td-qty">Quantity</label>
+        <input class="input" id="td-qty" type="number" min="1" step="1">
+        <span class="hint" id="td-qty-hint"></span>
+      </div>
+      <div class="field">
+        <label for="td-hold">Hold up to (trading days)</label>
+        <input class="input" id="td-hold" type="number" min="1" max="30" step="1">
+      </div>
+      <div class="field">
+        <label for="td-stop">Stop (₹)</label>
+        <input class="input" id="td-stop" type="number" min="0.01" step="0.05">
+      </div>
+      <div class="field">
+        <label for="td-target">Target (₹)</label>
+        <input class="input" id="td-target" type="number" min="0.01" step="0.05">
+      </div>
+    </div>
+    <div class="field" id="td-sell-fields">
+      <label for="td-reason">Why you sold</label>
+      <select class="input input-full" id="td-reason">
+        <option value="stop">The stop was hit</option>
+        <option value="target">The target was reached</option>
+        <option value="time">The holding period ended</option>
+        <option value="exit_monitor">The Exit Monitor said exit</option>
+        <option value="manual">My own decision</option>
+      </select>
+    </div>
+    <p class="form-error" id="td-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-secondary" id="td-cancel">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="td-submit">Save</button>
     </div>
   </form>
 </dialog>

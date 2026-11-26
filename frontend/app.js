@@ -50,8 +50,11 @@ function compactINR(v) {
 }
 const signedCompact = (v) => (v > 0 ? "+" : "") + compactINR(v);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + "s"}`;
-const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "?";
+const initials = (name) => name.split(/\s+/).map((w) => (w.match(/[A-Za-z0-9]/) || [""])[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 const safeUrl = (u) => (typeof u === "string" && /^https?:\/\//i.test(u) ? u : null);
+const todayIST = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const timeFmt = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+const timeIST = (iso) => (iso ? timeFmt.format(new Date(iso)) : "—");
 
 const SETUP_LABEL = { pullback_uptrend: "Pullback", breakout: "Breakout", oversold_bounce: "Oversold bounce", none: "No setup" };
 const SOURCE_LABEL = { agents: "Agents' plan", manual: "Your order" };
@@ -90,7 +93,9 @@ const state = {
   hist: { period: 0, symbol: "all", result: "all", limit: 25 },
   ana: { period: 0, symbol: "all" },
   jobId: null, jobDone: -1, pollTimer: 0, confirm: null, loadToken: 0,
+  live: null, holdings: [], trade: null, deskMode: "live",
 };
+const isLive = () => !!(state.desk && state.desk.mode === "live");
 
 /* ================= Tooltip & toast ================= */
 const tip = $("tip");
@@ -518,6 +523,7 @@ async function refreshAll() {
   }
   if (token !== state.loadToken) return;
   state.desk = desk;
+  if (isLive()) { try { state.live = await GET("/api/live"); } catch (e) { state.live = null; } }
   renderShell();
   watchJob(desk.job);
   await loadView(token);
@@ -532,6 +538,11 @@ async function loadView(token = state.loadToken) {
     await loadDetail();
     if (token !== state.loadToken) return;
     renderDashboard();
+  } else if (v === "tradebook" && isLive()) {
+    const h = await GET(deskPath("/holdings"));
+    if (token !== state.loadToken) return;
+    state.holdings = h;
+    renderHoldings();
   } else if (v === "tradebook") {
     const b = await GET(deskPath("/book"));
     if (token !== state.loadToken) return;
@@ -580,6 +591,13 @@ function renderNoDesk() {
 }
 function renderShell() {
   const d = state.desk;
+  $("app").classList.toggle("is-live", isLive());
+  $("mode-pill").textContent = "Replay of history";
+  $("mode-pill").title = "The desk replays past trading days as if they were live: each morning the agents see only data up to the previous close.";
+  $("rail-meter").hidden = false;
+  $("rail-start").parentElement.hidden = false;
+  $("run-n").parentElement.hidden = false;
+  $("run-day-m").textContent = "Run the day";
   $("no-desk").hidden = true;
   $("session-card").hidden = false;
   $("delete-desk").hidden = false;
@@ -615,8 +633,33 @@ function renderShell() {
   for (const id of ["run-day", "run-many", "run-day-m"]) $(id).disabled = !canRun;
   $("run-n").disabled = !canRun;
   $("run-day").lastChild.textContent = d.phase === "new" ? "Make the first plans" : "Run the day";
+  if (isLive()) renderLiveShell();
   $("page-title").textContent = VIEWS[state.view][0];
   $("page-sub").textContent = VIEWS[state.view][1]();
+}
+function renderLiveShell() {
+  const d = state.desk, l = d.live || {}, sched = (state.live && state.live.schedule) || {};
+  const mp = $("mode-pill");
+  mp.textContent = "Live NSE data";
+  mp.title = "Suggestions for the next trading day from the latest NSE data. You trade in your own broker; this is research, not advice.";
+  const st = $("rail-state");
+  st.textContent = busy() ? "Updating" : d.phase === "new" ? "Starting" : "Live";
+  st.className = "session-state" + (busy() || d.phase === "new" ? " planning" : "");
+  $("rail-day").textContent = d.phase === "new" ? "First update…" : `For ${dayLong(d.current_date)}`;
+  $("rail-meter").hidden = true;
+  $("rail-start").parentElement.hidden = true;
+  $("run-n").parentElement.hidden = true;
+  $("run-day").lastChild.textContent = "Update and suggest";
+  $("run-day-m").textContent = "Update";
+  for (const id of ["run-day", "run-day-m"]) $(id).disabled = busy();
+  const next = sched.daily && sched.daily.next_run ? ` Next automatic run: ${sched.daily.next_run}.` : " No daily schedule installed.";
+  $("rail-note").textContent = l.last_price_day
+    ? `Data to the close of ${dateLabel(l.last_price_day)}; suggestions made ${timeIST(l.planned_at)}.${next}`
+    : "Getting the first data and making suggestions…";
+  const pill = $("head-pill");
+  pill.classList.toggle("is-closed", false);
+  pill.classList.toggle("is-planning", busy() || d.phase === "new");
+  $("head-clock").textContent = d.phase === "morning" ? `Live · suggestions for ${dateLabel(d.current_date)}` : "Live · starting";
 }
 
 function watchJob(job) {
@@ -658,7 +701,8 @@ async function pollJob() {
 function showJob(job) {
   $("job-banner").hidden = false;
   const p = job.params || {};
-  $("job-title").textContent = job.kind === "create" ? "Making the first plans"
+  $("job-title").textContent = job.kind === "live" ? "Updating the data and making today's suggestions"
+    : job.kind === "create" ? "Making the first plans"
     : job.kind === "analyse" ? `The agents are analysing ${p.symbol}`
     : job.status === "cancelling" ? "Stopping after the current step" : `Running ${plural(job.total, "trading day")}`;
   $("job-message").textContent = job.kind === "advance" ? `${job.done} of ${job.total} done · ${job.message}` : job.message;
@@ -669,6 +713,7 @@ function showJob(job) {
   c.disabled = job.status === "cancelling";
 }
 async function runDays(n) {
+  if (isLive()) return refreshLive();
   try {
     const { job_id } = await POST(deskPath("/advance"), { days: n });
     state.jobId = job_id;
@@ -679,11 +724,38 @@ async function runDays(n) {
   } catch (e) { toast(e.message); }
 }
 
+async function refreshLive() {
+  try {
+    const { job_id } = await POST(deskPath("/refresh"));
+    state.jobId = job_id;
+    state.jobDone = 0;
+    showJob({ id: job_id, kind: "live", total: 1, done: 0, status: "queued", message: "Waiting to start", params: {} });
+    renderShell();
+    schedulePoll(500);
+  } catch (e) { toast(e.message); }
+}
+
 /* ================= Dashboard ================= */
 function renderDashboard() { renderDashKpis(); renderWatchlist(); renderFeed(); renderDetail(); renderPipeline(); }
 
+function kpiLabel(id, text) { $(id).previousElementSibling.textContent = text; }
 function renderDashKpis() {
   const d = state.desk;
+  kpiLabel("k-pos", isLive() ? "Your holdings" : "Open positions");
+  kpiLabel("k-sig", isLive() ? "Suggestions" : "Trades for the open");
+  if (isLive()) {
+    setKpi("k-day", d.open_positions ? signedMoney(d.day_pnl) : "—", toneOf(d.day_pnl),
+      d.open_positions ? `Your holdings on ${dateLabel(d.last_session)}` : "No holdings yet");
+    setKpi("k-pos", String(d.open_positions), "", d.open_positions
+      ? `${signedMoney0(d.open_pnl)} open P&L` + (d.urgent ? ` · ${d.urgent} need${d.urgent === 1 ? "s" : ""} action` : "")
+      : "Mark a suggestion as bought to track it");
+    const s = d.signals || { accepted: 0, analysed: 0 };
+    setKpi("k-sig", d.phase === "morning" ? String(s.accepted) : "—", "", d.phase === "morning"
+      ? `long plans for ${dateLabel(d.current_date)} · ${s.analysed} analysed` : "The first suggestions are on their way");
+    const w = d.win_rate_month || { trades: 0 };
+    setKpi("k-win", w.trades ? pct(w.win_rate) : "—", "", `${plural(w.trades, "closed trade")} · profit factor ${w.profit_factor == null ? "—" : w.profit_factor.toFixed(2)}`);
+    return;
+  }
   setKpi("k-day", d.last_session ? signedMoney(d.day_pnl) : "—", toneOf(d.day_pnl),
     d.last_session ? `Session of ${dateLabel(d.last_session)} · equity ${compactINR(d.equity)} (${signedPct(d.total_return * 100)} since the start)` : "No session run yet");
   setKpi("k-pos", String(d.open_positions), "", d.open_positions ? `${compactINR(d.exposure)} at the last close` : "No open positions");
@@ -699,7 +771,8 @@ function renderWatchlist() {
   body.replaceChildren();
   const live = rows.filter((r) => !r.removed).length;
   $("watch-count").textContent = w && w.visible_through
-    ? `${plural(live, "stock")} · picked at 08:30 on ${dateLabel(w.trade_date)}, with data to the close of ${dateLabel(w.visible_through)}` : "";
+    ? (isLive() ? `${plural(live, "stock")} · picked for ${dateLabel(w.trade_date)}, with data to the close of ${dateLabel(w.visible_through)}`
+      : `${plural(live, "stock")} · picked at 08:30 on ${dateLabel(w.trade_date)}, with data to the close of ${dateLabel(w.visible_through)}`) : "";
   const open = morning() && !busy();
   $("add-ticker").disabled = !open;
   $("add-btn").disabled = !open;
@@ -884,7 +957,11 @@ function renderReport(d) {
   }
   plan.append(top, levels, el("p", null, p.rationale));
   box.append(plan);
-  if (d.position) {
+  if (d.holding) {
+    const h = d.holding, n = el("p", "notice");
+    n.append(el("span", h.advice.urgent ? "advice urgent" : "advice", `You bought ${nf0.format(h.quantity)} on ${dateLabel(h.entry_date)} at ${money(h.entry_price)}. ${h.advice.text}`));
+    box.append(n);
+  } else if (d.position) {
     const pos = d.position;
     box.append(el("p", "notice", `Held: ${nf0.format(pos.quantity)} shares bought ${dateLabel(pos.entry_date)} at ${money(pos.entry_price)}, day ${pos.days} of ${pos.max_hold_days}. Stop ${money(pos.stop)}, target ${money(pos.target)}.`));
   }
@@ -945,6 +1022,16 @@ function renderActions(d) {
     box.append(n);
   }
   if (busy()) return;
+  if (d.mode === "live") {
+    if (a.bought) box.append(button("I bought this", "btn-primary btn-sm", () => openTradeDialog("bought", d)));
+    if (a.sold) box.append(button("I sold", "btn-secondary btn-sm", () => openTradeDialog("sold", d.holding)));
+    if (a.sold && d.holding.advice.action === "tighten_stop") {
+      box.append(button(`Raise stop to ${nf2.format(d.holding.advice.new_stop)}`, "btn-secondary btn-sm", () => raiseStop(d.holding)));
+    }
+    if (a.remove) box.append(button("Hide from the list", "btn-secondary btn-sm", () => removeStock(sym)));
+    if (a.restore) box.append(button("Show again", "btn-secondary btn-sm", () => restoreStock(sym)));
+    return;
+  }
   if (a.buy) box.append(button("Buy at the open", "btn-primary btn-sm", () => placeOrder(sym, "buy")));
   if (a.exit) box.append(button("Exit at the open", "btn-danger btn-sm", () => placeOrder(sym, "exit")));
   if (a.remove) box.append(button(d.plan && d.plan.accepted ? "Skip this trade" : "Remove from the list", "btn-secondary btn-sm", () => removeStock(sym)));
@@ -975,6 +1062,7 @@ async function loadTrace() {
 }
 
 function renderPipeline() {
+  if (isLive()) return renderLivePipeline();
   const d = state.desk, m = state.meta, list = $("pipeline");
   const llm = d.provider === "offline" ? ["Rules", "chip-muted"] : ["LLM", "chip-signal"];
   const t = d.llm_today || {};
@@ -990,6 +1078,154 @@ function renderPipeline() {
     li.append(el("span", "pl-name", name), el("span", "chip " + cls, chip), el("span", "pl-note", note));
     return li;
   }));
+}
+
+function renderLivePipeline() {
+  const d = state.desk, L = state.live || {}, b = L.built || {}, mods = L.models || {}, sched = L.schedule || {};
+  const t = d.llm_today || {};
+  const fit = (m) => (mods[m] ? `Refitted for ${dateLabel(mods[m].fitted_for)} on all data, labels to ${dateLabel(mods[m].train_end)}.` : "Not fitted yet: run python -m src.live refit.");
+  const items = [
+    ["Prices and filings", ["Daily update", "chip-preview"], b.last_price_day ? `NSE prices to the close of ${dateLabel(b.last_price_day)}, filings to ${L.lake ? timeIST(L.lake.last_announcement) : "—"}; live tables built ${timeIST(b.built_at)}.` : "Waiting for the first update."],
+    ["Base forecast (TFT)", [mods.tft ? "Live fit" : "Missing", mods.tft ? "chip-preview" : "chip-warn"], fit("tft") + " The agents see it as one piece of evidence."],
+    ["Forecast range (LSTM)", [mods.lstm ? "Live fit" : "Missing", mods.lstm ? "chip-preview" : "chip-warn"], fit("lstm") + " Draws the range on the chart."],
+    ["Agents", d.provider === "offline" ? ["Rules", "chip-muted"] : ["LLM", "chip-signal"], `Planner, Bull, Bear, Forecaster, Critic and the Exit Monitor on your holdings${d.provider === "offline" ? " (rule-based)" : ` on ${d.model || d.provider}`}. Today: ${plural(t.llm_calls || 0, "LLM call")}, ${plural(t.fallbacks || 0, "fallback")} to rules.`],
+    ["Schedule", sched.daily ? ["On", "chip-up"] : ["Off", "chip-muted"], sched.daily ? `Every weekday at ${(L.settings || {}).daily_time || "08:00"} IST (next: ${sched.daily.next_run}); models refit weekly (next: ${sched.refit ? sched.refit.next_run : "—"}).` : "Install with: python -m src.live schedule install"],
+  ];
+  $("pipeline").replaceChildren(...items.map(([name, [chip, cls], note]) => {
+    const li = el("li");
+    li.append(el("span", "pl-name", name), el("span", "chip " + cls, chip), el("span", "pl-note", note));
+    return li;
+  }));
+}
+
+/* ================= Live holdings ================= */
+function renderHoldings() {
+  const d = state.desk, hs = state.holdings, open = !busy();
+  kpiLabel("t-day", "Day P&L");
+  kpiLabel("t-real", "Open P&L");
+  kpiLabel("t-unreal", "Need action today");
+  kpiLabel("t-orders", "Holdings");
+  setKpi("t-day", hs.length ? signedMoney(d.day_pnl) : "—", toneOf(d.day_pnl), hs.length ? `On ${dateLabel(d.last_session)}` : "No holdings yet");
+  const pnl = sum(hs.map((h) => h.pnl || 0));
+  setKpi("t-real", signedMoney(pnl), toneOf(pnl), "At the last close, after buy costs");
+  const urgent = hs.filter((h) => h.advice && h.advice.urgent).length;
+  setKpi("t-unreal", String(urgent), urgent ? "down" : "", urgent ? "See the advice below" : "Nothing to do at the open");
+  setKpi("t-orders", String(hs.length), "", `${compactINR(sum(hs.map((h) => (h.last_close || h.entry_price) * h.quantity)))} at the last close`);
+  $("holdings-card").hidden = false;
+  $("hold-error").textContent = "";
+  $("holdings-sub").textContent = hs.length
+    ? `${plural(hs.length, "open trade")} you reported, checked with data to the close of ${dateLabel(d.visible_through)}`
+    : "Trades you reported appear here and are checked every morning";
+  const body = $("hold-body");
+  body.replaceChildren();
+  if (!hs.length) {
+    const tr = el("tr"), td = el("td", "empty-cell", "No holdings. Open a suggestion on the dashboard and press \"I bought this\" after you buy it in your broker.");
+    td.colSpan = 9;
+    tr.append(td);
+    body.append(tr);
+  }
+  for (const h of hs) {
+    const tr = el("tr"), c0 = el("td"), adv = el("td"), act = el("td", "r");
+    c0.append(el("span", "sym mono", h.symbol), el("span", "sym-sub", `${SOURCE_LABEL[h.source] || h.source} · ${dateLabel(h.entry_date)}`));
+    adv.append(el("span", "advice" + (h.advice.urgent ? " urgent" : ""), h.advice.text));
+    const row = el("div", "row-actions");
+    if (open) {
+      row.append(button("I sold", "btn-secondary btn-sm", () => openTradeDialog("sold", h)));
+      if (h.advice.action === "tighten_stop") row.append(button(`Stop → ${nf2.format(h.advice.new_stop)}`, "btn-primary btn-sm", () => raiseStop(h)));
+      const del = button("Delete", "btn-secondary btn-sm", () => {
+        if (del.dataset.armed) { deleteHolding(h); return; }
+        del.dataset.armed = "1";
+        del.textContent = "Sure?";
+        del.className = "btn btn-danger btn-sm";
+        setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = "Delete"; del.className = "btn btn-secondary btn-sm"; } }, 4000);
+      });
+      del.title = "Remove a holding you entered by mistake";
+      row.append(del);
+    }
+    act.append(row);
+    tr.append(c0, el("td", "r num", nf0.format(h.quantity)), el("td", "r num", nf2.format(h.entry_price)),
+      el("td", "r num", h.last_close == null ? "—" : nf2.format(h.last_close)),
+      el("td", "r num strong " + toneOf(h.pnl), h.pnl == null ? "—" : `${signedMoney(h.pnl)} (${signedPct(h.return_pct * 100)})`),
+      el("td", "r num", `${nf2.format(h.stop)} / ${nf2.format(h.target)}`),
+      el("td", "r num", `${h.checks.days_held} / ${h.max_hold_days}`), adv, act);
+    body.append(tr);
+  }
+}
+async function raiseStop(h) {
+  try {
+    await api("PATCH", deskPath(`/holdings/${h.id}`), { stop: h.advice.new_stop });
+    toast(`${h.symbol}: stop raised to ${nf2.format(h.advice.new_stop)}. Change it in your broker too.`);
+    await refreshAll();
+  } catch (e) { toast(e.message); }
+}
+async function deleteHolding(h) {
+  try {
+    await DEL(deskPath(`/holdings/${h.id}`));
+    toast(`${h.symbol} removed from your holdings`);
+    await refreshAll();
+  } catch (e) { $("hold-error").textContent = e.message; }
+}
+
+/* ================= I bought / I sold ================= */
+function openTradeDialog(kind, src) {
+  const dlg = $("trade-dialog"), buy = kind === "bought";
+  state.trade = { kind, src };
+  $("td-title").textContent = buy ? `I bought ${src.symbol}` : `I sold ${src.symbol}`;
+  $("td-sub").textContent = buy
+    ? "Enter what your broker filled. The plan's stop, target and holding period are filled in; the desk checks the trade every morning until you report the sale."
+    : `You bought ${nf0.format(src.quantity)} on ${dateLabel(src.entry_date)} at ${money(src.entry_price)}. The sale goes into the history with estimated delivery costs.`;
+  $("td-buy-fields").hidden = !buy;
+  $("td-sell-fields").hidden = buy;
+  $("td-date-label").textContent = buy ? "Bought on" : "Sold on";
+  $("td-price-label").textContent = buy ? "Price paid (₹)" : "Price sold at (₹)";
+  const today = todayIST();
+  $("td-date").max = today;
+  $("td-date").value = buy ? (state.desk.current_date <= today ? state.desk.current_date : today) : today;
+  if (buy) {
+    const p = src.plan || {};
+    $("td-price").value = src.price.last_close != null ? src.price.last_close.toFixed(2) : "";
+    $("td-qty").value = src.suggested_quantity || "";
+    $("td-qty-hint").textContent = src.suggested_quantity ? `Suggested: ${nf0.format(src.suggested_quantity)} (1% of capital at risk to the stop)` : "";
+    $("td-stop").value = p.stop != null ? p.stop.toFixed(2) : "";
+    $("td-target").value = p.target != null ? p.target.toFixed(2) : "";
+    $("td-hold").value = p.max_hold_days || 5;
+  } else {
+    $("td-date").min = src.entry_date;
+    $("td-price").value = src.last_close != null ? src.last_close.toFixed(2) : "";
+    const a = src.advice ? src.advice.action : "";
+    $("td-reason").value = { stop_hit: "stop", target_hit: "target", time_up: "time", exit: "exit_monitor" }[a] || "manual";
+  }
+  $("td-error").textContent = "";
+  dlg.showModal();
+  $("td-price").focus();
+}
+async function submitTrade(e) {
+  e.preventDefault();
+  const t = state.trade, btn = $("td-submit");
+  if (!t) return;
+  btn.disabled = true;
+  $("td-error").textContent = "";
+  try {
+    if (t.kind === "bought") {
+      await POST(deskPath("/holdings"), {
+        symbol: t.src.symbol, entry_date: $("td-date").value, entry_price: Number($("td-price").value),
+        quantity: Number($("td-qty").value), stop: Number($("td-stop").value) || null,
+        target: Number($("td-target").value) || null, max_hold_days: Number($("td-hold").value) || null,
+      });
+      toast(`${t.src.symbol} added to your holdings. Set the stop and target in your broker too.`);
+    } else {
+      await POST(deskPath(`/holdings/${t.src.id}/close`), {
+        exit_date: $("td-date").value, exit_price: Number($("td-price").value), reason: $("td-reason").value,
+      });
+      toast(`${t.src.symbol} sale recorded`);
+    }
+    $("trade-dialog").close();
+    await refreshAll();
+  } catch (err) {
+    $("td-error").textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 /* ================= Morning actions ================= */
@@ -1038,6 +1274,8 @@ async function cancelOrder(id) {
 /* ================= Trade book ================= */
 function renderTradebook() {
   const b = state.book, k = b.kpis, d = state.desk, open = morning() && !busy();
+  $("holdings-card").hidden = true;
+  [["t-day", "Day P&L"], ["t-real", "Booked P&L"], ["t-unreal", "Open P&L"], ["t-orders", "Orders executed"]].forEach(([id, t]) => kpiLabel(id, t));
   setKpi("t-day", b.session ? signedMoney(k.day_pnl) : "—", toneOf(k.day_pnl), b.session ? `Session of ${dateLabel(b.session)}, after costs` : "No session run yet");
   setKpi("t-real", signedMoney(k.booked), toneOf(k.booked), `${plural(k.closed_today, "trade")} closed that session`);
   setKpi("t-unreal", signedMoney(k.open_pnl), toneOf(k.open_pnl),
@@ -1306,9 +1544,10 @@ const VIEWS = {
   dashboard: ["Dashboard", () => {
     const d = state.desk;
     if (!d) return "";
+    if (isLive()) return d.phase === "morning" ? `Live · suggestions for ${dayLong(d.current_date)}, from data to the close of ${dateLabel(d.visible_through)}` : "Live · getting the first data";
     return `${dayLong(d.current_date)} · ${{ morning: "plans made at 08:30 IST; the market hasn't opened", closed: "session closed", new: "the agents are making the first plans", finished: "replay finished" }[d.phase] || d.phase}`;
   }],
-  tradebook: ["Trade book", () => "Open positions, orders waiting for the open and the last session's fills"],
+  tradebook: ["Trade book", () => (isLive() ? "Your holdings and today's advice on each" : "Open positions, orders waiting for the open and the last session's fills")],
   history: ["Trade history", () => "Closed trades on this desk, after costs"],
   analysis: ["Trade analysis", () => "How this desk's closed trades perform by stock, entry source and setup"],
 };
@@ -1332,12 +1571,24 @@ function navigate(view, updateHash = true) {
 }
 
 /* ================= New desk ================= */
+function setDeskMode(mode) {
+  state.deskMode = mode;
+  $("f-mode").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.value === mode)));
+  const live = mode === "live";
+  $("f-dates").hidden = live;
+  $("f-window").hidden = live;
+  $("f-capital-label").textContent = live ? "Capital (₹), for suggested position sizes" : "Starting capital (₹)";
+  $("f-mode-hint").textContent = live
+    ? "Every trading day: new data, the refitted models and the agents suggest trades for the next session. Mark what you buy and the desk tells you when to exit."
+    : "Paper trading through 2020–2023, one day at a time, to see how the agents would have done.";
+  const taken = new Set(state.desks.map((d) => d.name));
+  let name = live ? "Live" : "2023 replay", k = 2;
+  while (taken.has(name)) name = `${live ? "Live" : "2023 replay"} ${k++}`;
+  $("f-name").value = name;
+  $("desk-submit").textContent = live ? "Create and get suggestions" : "Create desk";
+}
 function openDeskDialog() {
   const m = state.meta, dlg = $("desk-dialog");
-  const taken = new Set(state.desks.map((d) => d.name));
-  let name = "2023 replay", k = 2;
-  while (taken.has(name)) name = `2023 replay ${k++}`;
-  $("f-name").value = name;
   for (const id of ["f-start", "f-end"]) { $(id).min = m.window.start; $(id).max = m.window.end; }
   $("f-start").value = m.window.start <= "2023-01-02" && "2023-01-02" <= m.window.end ? "2023-01-02" : m.window.start;
   $("f-end").value = "";
@@ -1349,7 +1600,9 @@ function openDeskDialog() {
     o.disabled = !p.ready;
     return o;
   }));
-  sel.value = "offline";
+  const def = m.providers.find((p) => p.ready && p.provider !== "offline");
+  sel.value = def ? def.provider : "offline";
+  setDeskMode(state.desks.some((d) => d.mode === "live") ? "replay" : "live");
   providerHint();
   $("desk-error").textContent = "";
   dlg.showModal();
@@ -1367,11 +1620,13 @@ async function submitDesk(e) {
   $("desk-error").textContent = "";
   try {
     const r = await POST("/api/desks", {
-      name: $("f-name").value, start_date: $("f-start").value, end_date: $("f-end").value || null,
+      name: $("f-name").value, mode: state.deskMode,
+      start_date: state.deskMode === "replay" ? $("f-start").value : null,
+      end_date: state.deskMode === "replay" ? $("f-end").value || null : null,
       capital: Number($("f-capital").value) || null, provider: $("f-provider").value,
     });
     $("desk-dialog").close();
-    toast(`Desk "${r.desk.name}" created. The agents are making the first plans.`);
+    toast(state.deskMode === "live" ? `Live desk "${r.desk.name}" created. Getting today's data and suggestions.` : `Desk "${r.desk.name}" created. The agents are making the first plans.`);
     await loadDesks();
     await selectDesk(r.desk.id);
   } catch (err) {
@@ -1431,6 +1686,9 @@ $("delete-desk").addEventListener("click", onDeleteDesk);
 $("desk-form").addEventListener("submit", submitDesk);
 $("desk-cancel").addEventListener("click", () => $("desk-dialog").close());
 $("f-provider").addEventListener("change", providerHint);
+bindSeg("f-mode", (v) => setDeskMode(v));
+$("trade-form").addEventListener("submit", submitTrade);
+$("td-cancel").addEventListener("click", () => $("trade-dialog").close());
 $("add-form").addEventListener("submit", (e) => { e.preventDefault(); addStock($("add-ticker").value); });
 bindSeg("feed-filter", (v) => { state.feedFilter = v; renderFeed(); });
 bindSeg("h-period", (v) => { state.hist.period = +v; state.hist.limit = 25; renderHistory(); });

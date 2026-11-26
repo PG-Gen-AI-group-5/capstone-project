@@ -27,7 +27,8 @@ from src.desk.store import Store
 
 class CreateDesk(BaseModel):
     name: str = Field(min_length=1, max_length=60)
-    start_date: date
+    mode: str = "replay"                                   # replay | live
+    start_date: date | None = None                         # replay desks only
     end_date: date | None = None
     capital: float | None = Field(default=None, gt=0)
     provider: str = "offline"
@@ -46,6 +47,27 @@ class PlaceOrder(BaseModel):
     action: str
 
 
+class Bought(BaseModel):
+    symbol: str = Field(min_length=1, max_length=20)
+    entry_date: date
+    entry_price: float = Field(gt=0)
+    quantity: int = Field(gt=0)
+    stop: float | None = Field(default=None, gt=0)
+    target: float | None = Field(default=None, gt=0)
+    max_hold_days: int | None = Field(default=None, ge=1, le=30)
+
+
+class Sold(BaseModel):
+    exit_date: date
+    exit_price: float = Field(gt=0)
+    reason: str = "manual"
+
+
+class EditHolding(BaseModel):
+    stop: float | None = Field(default=None, gt=0)
+    target: float | None = Field(default=None, gt=0)
+
+
 def clean(value):
     """JSON without NaN or infinity (the browser's JSON.parse rejects them)."""
     if isinstance(value, float):
@@ -58,11 +80,14 @@ def clean(value):
 
 
 def create_app(cfg: Config | None = None, store: Store | None = None, data: DeskData | None = None,
-               run_worker: bool = True) -> FastAPI:
+               run_worker: bool = True, live_data: DeskData | None = None) -> FastAPI:
+    from src.desk import live
+
     cfg = cfg or Config.load()
     store = store or Store(cfg.data_dir / desk_settings(cfg)["db"])
     get_data = (lambda: data) if data is not None else (lambda: shared_data(cfg))
-    worker = jobs.Worker(store, cfg, get_data)
+    get_live = (lambda: live_data) if live_data is not None else (lambda: live.live_data(cfg))
+    worker = jobs.Worker(store, cfg, get_data, get_live)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -92,6 +117,18 @@ def create_app(cfg: Config | None = None, store: Store | None = None, data: Desk
     def wake() -> None:
         worker.wake.set()
 
+    def data_for(desk: dict) -> DeskData:
+        return get_live() if desk.get("mode") == "live" else get_data()
+
+    def summary(desk: dict) -> dict:
+        try:
+            return views.desk_summary(store, data_for(desk), desk)
+        except service.DeskError:                 # a live desk before its first update
+            job = store.row("SELECT * FROM jobs WHERE desk_id = ? ORDER BY id DESC LIMIT 1", (desk["id"],))
+            return {"id": desk["id"], "name": desk["name"], "mode": desk.get("mode"), "provider": desk["provider"],
+                    "model": desk["model"], "phase": desk["phase"], "current_date": desk["current_date"],
+                    "capital": desk["capital"], "job": job, "live": {}, "open_positions": 0, "days_done": 0}
+
     # ---- the app's settings and status
     @app.get("/api/meta")
     def meta():
@@ -112,20 +149,75 @@ def create_app(cfg: Config | None = None, store: Store | None = None, data: Desk
     # ---- desks
     @app.get("/api/desks")
     def list_desks():
-        d = get_data()
-        return ok([views.desk_summary(store, d, x) for x in store.rows("SELECT * FROM desks ORDER BY id")])
+        return ok([summary(x) for x in store.rows("SELECT * FROM desks ORDER BY id")])
 
     @app.post("/api/desks", status_code=201)
     def create(body: CreateDesk):
-        desk_id = service.create_desk(store, get_data(), cfg, body.name, body.start_date, body.capital, body.provider,
-                                      body.end_date)
-        job = jobs.submit(store, desk_id, "create")
+        if body.mode == "live":
+            desk_id = live.create_live_desk(store, cfg, body.name, body.capital, body.provider)
+            job = jobs.submit(store, desk_id, "live", {"update": True})
+        else:
+            if body.start_date is None:
+                raise service.DeskError("Pick the first day for the replay.")
+            desk_id = service.create_desk(store, get_data(), cfg, body.name, body.start_date, body.capital,
+                                          body.provider, body.end_date)
+            job = jobs.submit(store, desk_id, "create")
         wake()
-        return ok({"desk": views.desk_summary(store, get_data(), desk_or_404(desk_id)), "job_id": job}, 201)
+        return ok({"desk": summary(desk_or_404(desk_id)), "job_id": job}, 201)
 
     @app.get("/api/desks/{desk_id}")
     def desk(desk_id: int):
-        return ok(views.desk_summary(store, get_data(), desk_or_404(desk_id)))
+        return ok(summary(desk_or_404(desk_id)))
+
+    # ---- live desks
+    @app.post("/api/desks/{desk_id}/refresh")
+    def refresh(desk_id: int):
+        live.live_desk(store, desk_id)
+        job = jobs.submit(store, desk_id, "live", {"update": True})
+        wake()
+        return ok({"job_id": job})
+
+    @app.get("/api/live")
+    def live_status():
+        from src.live import models as live_models
+        from src.live import update as live_update
+        from src.live.env import live_config, live_settings
+        from src.live.schedule import installed
+
+        lcfg = live_config(cfg)
+        return ok({"lake": live_update.lake_status(cfg), "built": live_update.built(cfg),
+                   "models": {m: live_models.fit_info(lcfg, m) for m in live_settings(cfg)["models"]},
+                   "schedule": installed(), "settings": live_settings(cfg)})
+
+    @app.get("/api/desks/{desk_id}/holdings")
+    def holdings(desk_id: int, status: str = "open"):
+        desk = live.live_desk(store, desk_id)
+        try:
+            d = get_live()
+        except service.DeskError:
+            d = None
+        return ok(live.holding_rows(store, d, desk, "closed" if status == "closed" else "open"))
+
+    @app.post("/api/desks/{desk_id}/holdings", status_code=201)
+    def bought(desk_id: int, body: Bought):
+        hid = live.add_holding(store, get_live(), desk_id, body.symbol, body.entry_date, body.entry_price,
+                               body.quantity, body.stop, body.target, body.max_hold_days)
+        return ok({"holding_id": hid}, 201)
+
+    @app.patch("/api/desks/{desk_id}/holdings/{holding_id}")
+    def edit_holding(desk_id: int, holding_id: int, body: EditHolding):
+        live.update_holding(store, desk_id, holding_id, body.stop, body.target)
+        return ok({"holding_id": holding_id})
+
+    @app.post("/api/desks/{desk_id}/holdings/{holding_id}/close")
+    def sold(desk_id: int, holding_id: int, body: Sold):
+        tid = live.close_holding(store, get_live(), desk_id, holding_id, body.exit_date, body.exit_price, body.reason)
+        return ok({"trade_id": tid})
+
+    @app.delete("/api/desks/{desk_id}/holdings/{holding_id}")
+    def delete_holding(desk_id: int, holding_id: int):
+        live.delete_holding(store, desk_id, holding_id)
+        return ok({"deleted": holding_id})
 
     @app.delete("/api/desks/{desk_id}")
     def delete(desk_id: int):
@@ -135,6 +227,7 @@ def create_app(cfg: Config | None = None, store: Store | None = None, data: Desk
     @app.post("/api/desks/{desk_id}/advance")
     def advance(desk_id: int, body: Advance):
         desk = desk_or_404(desk_id)
+        service.replay_only(desk)
         if desk["phase"] == "finished":
             raise service.DeskError("This desk has reached its last day.")
         job = jobs.submit(store, desk_id, "advance", {"days": body.days}, total=body.days)
@@ -157,7 +250,8 @@ def create_app(cfg: Config | None = None, store: Store | None = None, data: Desk
     # ---- the morning: watchlist, stocks, orders
     @app.get("/api/desks/{desk_id}/watchlist")
     def watchlist(desk_id: int, date: str | None = None):
-        return ok(views.watchlist(store, get_data(), desk_or_404(desk_id), date))
+        desk = desk_or_404(desk_id)
+        return ok(views.watchlist(store, data_for(desk), desk, date))
 
     @app.post("/api/desks/{desk_id}/watchlist")
     def add_stock(desk_id: int, body: AddStock):
@@ -181,7 +275,8 @@ def create_app(cfg: Config | None = None, store: Store | None = None, data: Desk
     @app.get("/api/desks/{desk_id}/stocks/{symbol}")
     def stock(desk_id: int, symbol: str, date: str | None = None):
         try:
-            return ok(views.stock_detail(store, get_data(), desk_or_404(desk_id), symbol.upper(), date))
+            desk = desk_or_404(desk_id)
+            return ok(views.stock_detail(store, data_for(desk), desk, symbol.upper(), date))
         except KeyError:
             raise HTTPException(404, f"No data for {symbol.upper()} on that day.") from None
 
@@ -203,12 +298,12 @@ def create_app(cfg: Config | None = None, store: Store | None = None, data: Desk
     # ---- book, history, analysis, feed
     @app.get("/api/desks/{desk_id}/book")
     def book(desk_id: int):
-        return ok(views.book(store, get_data(), desk_or_404(desk_id)))
+        desk = desk_or_404(desk_id)
+        return ok(views.book(store, data_for(desk), desk))
 
     @app.get("/api/desks/{desk_id}/trades")
     def trades(desk_id: int):
-        desk_or_404(desk_id)
-        return ok(views.trades(store, get_data(), desk_id))
+        return ok(views.trades(store, data_for(desk_or_404(desk_id)), desk_id))
 
     @app.get("/api/desks/{desk_id}/equity")
     def equity(desk_id: int):
@@ -217,8 +312,7 @@ def create_app(cfg: Config | None = None, store: Store | None = None, data: Desk
 
     @app.get("/api/desks/{desk_id}/days")
     def days(desk_id: int):
-        desk_or_404(desk_id)
-        return ok(views.days(store, get_data(), desk_id))
+        return ok(views.days(store, data_for(desk_or_404(desk_id)), desk_id))
 
     @app.get("/api/desks/{desk_id}/events")
     def events(desk_id: int, after: int = 0, limit: int = 120):

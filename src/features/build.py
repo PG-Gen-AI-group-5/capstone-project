@@ -174,7 +174,29 @@ def drop_sessions(df: pd.DataFrame, skip: pd.DatetimeIndex) -> pd.DataFrame:
     return df[~pd.to_datetime(df["trade_date"]).isin(skip)].reset_index(drop=True)
 
 
-def build(cfg: Config) -> dict:
+def add_placeholder_day(prices: pd.DataFrame, index: pd.DataFrame, day) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Append an empty row for a trading day whose prices are not out yet (live forecasting).
+
+    Every stock and index that traded on the last day gets a row for `day` with no prices. Because each
+    feature row holds the previous close (shift by one row), the row for `day` is complete: it is exactly
+    the row the build will produce once `day`'s prices arrive.
+    """
+    d = pd.Timestamp(day)
+    prices = prices.assign(trade_date=pd.to_datetime(prices["trade_date"]))
+    index = index.assign(trade_date=pd.to_datetime(index["trade_date"]))
+    if d <= prices["trade_date"].max():
+        raise ValueError(f"{d.date()} already has prices; a placeholder day must come after the last one")
+    last = prices["trade_date"].max()
+    syms = prices.loc[prices["trade_date"] == last, "symbol"].unique()
+    prices = pd.concat([prices, pd.DataFrame({"symbol": syms, "trade_date": d})], ignore_index=True)
+    names = index.loc[index["trade_date"] == index["trade_date"].max(), "index_name"].unique()
+    index = pd.concat([index, pd.DataFrame({"index_name": names, "trade_date": d, "close": np.nan})], ignore_index=True)
+    return prices, index
+
+
+def build(cfg: Config, extra_day=None) -> dict:
+    """The features table. `extra_day`: also build the row for this next trading day, before its prices
+    exist (the live path, into its own data folder; see add_placeholder_day)."""
     f = cfg["features"]
     hhmm = cfg.get("forecast_time_ist", "08:30")
     skip = skipped_sessions(cfg)
@@ -183,6 +205,8 @@ def build(cfg: Config) -> dict:
     prices = drop_sessions(prices, skip)
     index = drop_sessions(read_table(cfg, "index_daily", columns=["index_name", "trade_date", "close"]), skip)
     macro = read_table(cfg, "macro", columns=["series_id", "obs_date", "value", "known_from"])
+    if extra_day is not None:
+        prices, index = add_placeholder_day(prices, index, extra_day)
 
     ev_cfg = f.get("events", {})
     cap = int(ev_cfg.get("days_since_cap", 90))

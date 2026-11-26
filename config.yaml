@@ -269,6 +269,19 @@ desk:
   history_days: 400                # feature history loaded before the window (charts, the Exit Monitor)
   vol_model: lstm                  # whose volatility forecast draws the chart's range (the robust model, EDA 03)
 
+# Live suggester (src/live, src/desk/live.py): each trading day, suggestions for the next session and exit advice on
+# the trades you report. Live tables and models live in data/live/ (never data/derived or the frozen test forecasts).
+# Run: python -m src.live daily   |   schedule: python -m src.live schedule install
+live:
+  models: [tft, lstm]              # refitted on all data to the day before; the TFT is the agents' base forecast,
+                                   # the LSTM draws the volatility range
+  refit_every_days: 5              # trading days between refits (the weekly task refits; the 08:00 run only predicts)
+  daily_time: "08:00"              # IST, weekdays: after the previous evening's bhavcopy and overnight filings
+  refit_day: SAT
+  refit_time: "10:00"
+  weekly_sources_every_days: 7     # corporate actions, results and FRED are re-read weekly
+  stale_ok: false                  # refuse to suggest for a day that has already passed (data not updated)
+
 # Market regime labels (src/features/regime.py). Each label for day d uses closes up to d-1.
 regime:
   trend_ema_span: 200              # Nifty 50 close vs its 200-day EMA

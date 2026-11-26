@@ -61,10 +61,12 @@ capstone-project/
 │   ├── pipeline/  stages.py runner.py __main__.py                   stage registry, runner, command line (exists)
 │   ├── whatif.py                                                    15.1
 │   ├── run.py                                                       13.4–13.6  agent runs: one day or a range, resume, positions (exists)
-│   ├── desk/      store.py data.py service.py views.py jobs.py __main__.py   paper-trading desk: daily inference + SQLite (exists)
+│   ├── desk/      store.py data.py service.py live.py views.py jobs.py __main__.py   desks (replay + live) and their SQLite store (exists)
+│   ├── live/      env.py update.py models.py schedule.py __main__.py   live suggester: daily data, live models, schedule (exists)
 │   ├── api/       app.py __main__.py                                FastAPI backend for the app (exists)
 │   └── dashboard/ app.py                                            19.x  v1 exists (streamlit run src/dashboard/app.py)
 ├── frontend/      index.html styles.css app.js                      the desk app (docs/design/trading-with-ai.html made real)
+├── scripts/       live.cmd                                          what the scheduled tasks run (python -m src.live ...)
 └── tests/                     mirrors src/; fixtures/ holds small real data slices (1.7)
 ```
 
@@ -297,7 +299,8 @@ and `data/derived`. Tables, defined in `src/desk/store.py`:
 | `equity` | close: cash, positions, equity |
 | `events` | line in the desk feed |
 | `trace_steps` | agent step (LLM call or offline rule), as in `runs/<id>/trace.jsonl` |
-| `jobs` | background job: create, advance or analyse, with progress |
+| `jobs` | background job: create, advance, analyse or live update, with progress |
+| `holdings` | live desks: a trade you took, open until you report the sale |
 
 **API** (`python -m src.api`, FastAPI on 127.0.0.1:8000, which also serves `frontend/`):
 
@@ -310,11 +313,46 @@ and `data/derived`. Tables, defined in `src/desk/store.py`:
 | `GET /api/desks/{id}/stocks/{symbol}` | chart (daily bars to the last visible close, EMA20/50, forecast band), indicators, setup checks, plan and debate, evidence, allowed actions |
 | `GET /api/desks/{id}/trace?date=&symbol=` | the agent steps behind a plan |
 | `POST/DELETE /api/desks/{id}/orders` | a person's buy or exit for the next open; cancel it |
+| `POST /api/desks/{id}/refresh` | live desks: download, rebuild, forecast and suggest (a job) |
+| `GET/POST /api/desks/{id}/holdings`, `PATCH .../holdings/{hid}`, `POST .../holdings/{hid}/close` | your trades on a live desk: list with today's advice, add, change the stop, report the sale |
+| `GET /api/live` | live data and model status, and the scheduled tasks |
 | `GET /api/desks/{id}/book`, `/trades`, `/equity`, `/days`, `/events` | trade book, history and analysis, the feed |
 
 The chart's range is the LSTM's volatility forecast (the model that held up in validation) around the base model's
 expected return; charts show prices on the share basis of their last visible day, so a later split never shows early.
 `python -m src.desk create|advance|list` runs the same steps without the server.
+
+### The live suggester (`src/live`, `src/desk/live.py`)
+
+A **live desk** suggests trades for the next trading day D and watches the trades you report. Every weekday at 08:00 IST
+(Windows Task Scheduler, `python -m src.live schedule install`) and whenever you press "Update and suggest":
+
+```
+1. ingest       NSE bhavcopy and indices from a few days before the last price day (catches up a missed week),
+                announcements and board meetings (re-read), weekly corporate actions, results and FRED -> the shared lake
+2. build        data/live/derived: adjusted prices, labels, and features including the row for D, built before D's
+                prices exist (features/build.py add_placeholder_day; a test checks it equals the row built afterwards)
+3. forecast     the live TFT and LSTM predict D (data/live/derived/forecasts/<model>/live.parquet)
+4. agents       per live desk: the Exit Monitor on your holdings, then the Planner, debate, forecast and critique
+```
+
+- **Live models** are refitted on every row whose labels end before D, weekly (Saturday 10:00, `live.refit_every_days`),
+  so the morning run only predicts. They train on 2024+ data, so they live in `data/live/models` and are never used to
+  evaluate anything; the walk-forward and frozen test forecasts in `data/derived/forecasts` are untouched.
+- **Separate tables.** The live build writes `data/live/derived`, not `data/derived`, so the research pipeline's
+  manifests don't change. The daily ingest does add new days to the shared lake (committed only by the data lead).
+- **Holdings.** "I bought" records your date, price and quantity with the plan's stop, target and holding period. Each
+  morning the desk checks whether the stop or target was touched since your last look, whether the holding period is
+  over, and asks the Exit Monitor (hold, raise the stop, exit at the open). "I sold" closes it into `trades` with
+  estimated delivery costs, for the history and analysis pages.
+- A suggestion is only made for a day that hasn't passed: if the download brings no newer prices, the run stops and says so.
+
+```
+python -m src.live desk --name Live            # a live desk (LLM provider from config, or --provider offline)
+python -m src.live daily                       # what the 08:00 task runs
+python -m src.live refit                       # what the Saturday task runs (about an hour on CPU)
+python -m src.live status | schedule install | schedule remove
+```
 
 ---
 

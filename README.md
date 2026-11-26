@@ -102,6 +102,20 @@ evidence and trace, skip a trade, buy an analysed stock yourself, exit a positio
 analysis. Pick "Rule-based agents" for instant days, or an LLM provider (about 40 calls per day). The design it follows
 is `docs/design/trading-with-ai.html`; the database and routes are in `docs/ARCHITECTURE.md`.
 
+## Live suggestions every trading day
+
+```
+python -m src.live desk --name Live          # once: a live desk
+python -m src.live refit                     # once (about an hour): models refitted on all data to yesterday
+python -m src.live schedule install          # weekdays 08:00 IST suggestions, Saturday refits
+python -m src.live daily                     # or run it by hand (also the app's "Update and suggest" button)
+```
+
+Each run downloads the new NSE prices and filings, builds the next trading day's features before its prices exist,
+forecasts it with the live TFT and LSTM, and has the agents suggest trades. In the app, press "I bought this" on a
+suggestion you take; every morning the desk then tells you whether to hold, raise the stop, or sell at the open, until
+you report the sale. Live data and models are kept in `data/live/`, apart from the research results.
+
 ## Tests
 
 ```

@@ -1,6 +1,6 @@
 """The paper-trading desk: the agents' daily inference and a book that trades their plans, one day at a time.
 
-A desk replays history as if live. For trading day D:
+A replay desk (mode `replay`) replays history as if live; live desks are in src/desk/live.py. For trading day D:
 
     morning(D)   08:30 IST. The Exit Monitor reviews the open positions, the Planner picks the stocks and each
                  one goes through retrieve -> debate -> forecast -> critique (src/graph/build.py). Nothing after
@@ -146,6 +146,12 @@ def delete_desk(store: Store, desk_id: int) -> None:
         con.execute("DELETE FROM desks WHERE id = ?", (desk_id,))
 
 
+def replay_only(desk: dict) -> None:
+    if desk.get("mode") == "live":
+        raise DeskError("A live desk has no simulated sessions or orders: it plans each new trading day from fresh "
+                        "data, and you report the trades you take.")
+
+
 def book_of(desk: dict) -> Book:
     s = desk["settings"]
     return Book.from_state(desk["book"], s["portfolio"], s.get("costs"))
@@ -155,6 +161,7 @@ def book_of(desk: dict) -> Book:
 
 def run_morning(store: Store, data: DeskData, cfg: Config, desk_id: int, progress: Progress | None = None) -> dict:
     desk = get_desk(store, desk_id)
+    replay_only(desk)
     if desk["phase"] not in ("new", "closed"):
         raise DeskError(f"The morning for {desk['current_date']} has already run.")
     d = date.fromisoformat(desk["current_date"])
@@ -276,6 +283,7 @@ REASON_TEXT = {"stop": "Stop hit", "gap_stop": "Gapped through the stop", "targe
 
 def run_session(store: Store, data: DeskData, cfg: Config, desk_id: int) -> dict:
     desk = get_desk(store, desk_id)
+    replay_only(desk)
     if desk["phase"] != "morning":
         raise DeskError("The session runs after the morning's plans are made.")
     d = date.fromisoformat(desk["current_date"])
@@ -459,6 +467,7 @@ def place_order(store: Store, desk_id: int, symbol: str, action: str) -> int:
     """A person's order for today's session: `buy` an analysed stock at the open with its plan's levels, or
     `exit` an open position at the open."""
     desk, d = morning_desk(store, desk_id)
+    replay_only(desk)
     symbol = symbol.strip().upper()
     held = {p["signal"]["symbol"] for p in desk["book"]["positions"]}
     values = {"desk_id": desk_id, "trade_date": str(d), "symbol": symbol, "action": action, "created_at": now()}

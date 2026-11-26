@@ -52,9 +52,7 @@ class RunData:
         feats = feats[feats["ready"] & feats["symbol"].isin(keep)]
         prices = read_table(cfg, "prices_adj", layer="derived", columns=["symbol", "trade_date", "raw_close"])
         prices["trade_date"] = pd.to_datetime(prices["trade_date"])
-        prices = prices.sort_values(["symbol", "trade_date"])
-        prices["ref_close"] = prices.groupby("symbol")["raw_close"].shift(1)      # raw close of d-1
-        feats = feats.merge(prices[["symbol", "trade_date", "ref_close"]], on=["symbol", "trade_date"], how="left")
+        feats = with_ref_close(feats, prices)
         if start is not None:
             lo = pd.Timestamp(start) - pd.Timedelta(days=5)
             feats = feats[feats["trade_date"] >= lo]
@@ -84,6 +82,19 @@ class RunData:
         if rows is None:
             raise KeyError(f"{d.date()} is not a trading day with features")
         return DayView(self, d, rows)
+
+
+def with_ref_close(feats: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
+    """ref_close: the stock's last raw close before d (its previous trading day). Also defined for a live day
+    whose own prices are not out yet."""
+    f = feats.assign(_i=range(len(feats)), trade_date=feats["trade_date"].astype("datetime64[ns]")).sort_values("trade_date")
+    p = prices[["symbol", "trade_date", "raw_close"]].dropna()
+    p = p.assign(trade_date=p["trade_date"].astype("datetime64[ns]")).sort_values("trade_date")
+    f["symbol"] = f["symbol"].astype(str)
+    p = p.assign(symbol=p["symbol"].astype(str))
+    out = pd.merge_asof(f, p.rename(columns={"raw_close": "ref_close"}), on="trade_date", by="symbol",
+                        allow_exact_matches=False)
+    return out.sort_values("_i").drop(columns="_i").reset_index(drop=True)
 
 
 def load_base_forecasts(cfg: Config, model: str) -> pd.DataFrame:

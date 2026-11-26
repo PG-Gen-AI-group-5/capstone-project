@@ -43,9 +43,11 @@ def recover(store: Store) -> None:
 
 
 class Worker(threading.Thread):
-    def __init__(self, store: Store, cfg: Config, data: Callable[[], DeskData]):
+    def __init__(self, store: Store, cfg: Config, data: Callable[[], DeskData],
+                 live_data: Callable[[], DeskData] | None = None):
         super().__init__(name="desk-worker", daemon=True)
         self.store, self.cfg, self.data = store, cfg, data
+        self.live_data = live_data
         self.wake = threading.Event()
         self.stopping = False
 
@@ -61,6 +63,11 @@ class Worker(threading.Thread):
     def stop(self) -> None:
         self.stopping = True
         self.wake.set()
+
+    def finish(self, jid: int, status: str, message: str, done: int) -> None:
+        with self.store.tx() as con:
+            update(con, "jobs", {"status": status, "message": message, "done": done, "finished_at": now()},
+                   "id = ?", (jid,))
 
     def execute(self, job: dict) -> None:
         jid = job["id"]
@@ -85,9 +92,20 @@ class Worker(threading.Thread):
             return self.store.scalar("SELECT status FROM jobs WHERE id = ?", (jid,)) == "cancelling"
 
         try:
-            data = self.data()
+            desk = self.store.row("SELECT mode FROM desks WHERE id = ?", (job["desk_id"],)) or {}
             p = job["params"]
             done = job["total"]
+            if job["kind"] == "live":
+                from src.desk import live
+
+                out = live.daily(self.cfg, self.store, [job["desk_id"]], update_data=bool(p.get("update", True)),
+                                 progress=progress)
+                d = out["desks"][job["desk_id"]]
+                result = (f"Suggestions for {d['trade_date']} are ready: {d['accepted']} accepted, "
+                          f"{d['holdings']} holding(s) checked.")
+                self.finish(jid, "done", result, done)
+                return
+            data = (self.live_data or self.data)() if desk.get("mode") == "live" else self.data()
             if job["kind"] == "create":
                 service.run_morning(self.store, data, self.cfg, job["desk_id"], progress)
                 result = "First morning's plans are ready."
@@ -100,10 +118,7 @@ class Worker(threading.Thread):
                 result = f"{out['symbol']} analysed" + (": long plan accepted." if out["accepted"] else ".")
             else:
                 raise service.DeskError(f"Unknown job kind {job['kind']!r}.")
-            status = "cancelled" if cancelled() else "done"
-            with self.store.tx() as con:
-                update(con, "jobs", {"status": status, "message": result, "done": done, "finished_at": now()},
-                       "id = ?", (jid,))
+            self.finish(jid, "cancelled" if cancelled() else "done", result, done)
         except Exception as exc:  # noqa: BLE001 - any error fails the job; the desk stays at its last whole step
             msg = str(exc) if isinstance(exc, service.DeskError) else f"{type(exc).__name__}: {exc}"
             with self.store.tx() as con:

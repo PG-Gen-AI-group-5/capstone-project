@@ -595,3 +595,8 @@ select.input.input-full { width: 100%; height: 40px; }
 /* Absolutely positioned screen-reader labels inside a scrolling table stay inside its scroll box */
 .table-wrap { position: relative; }
 .rail .session-time { font-size: 16px; }
+.is-live .replay-only { display: none !important; }
+.advice { display: block; white-space: normal; max-width: 340px; font-size: 13px; color: var(--ink-2); }
+.advice.urgent { color: var(--down); font-weight: 500; }
+.row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.dialog .seg-wide { margin-top: 2px; }

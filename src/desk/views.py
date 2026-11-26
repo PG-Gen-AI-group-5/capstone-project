@@ -52,7 +52,7 @@ def desk_summary(store: Store, data: DeskData, desk: dict) -> dict:
                        "COALESCE(SUM(fallbacks),0) AS fallbacks, COUNT(*) AS days FROM days WHERE desk_id = ?", (did,))
     job = store.row(f"SELECT * FROM jobs WHERE desk_id = ? AND status IN {ACTIVE_JOB} ORDER BY id DESC LIMIT 1", (did,)) \
         or store.row("SELECT * FROM jobs WHERE desk_id = ? ORDER BY id DESC LIMIT 1", (did,))
-    return {
+    out = {
         "id": did, "name": desk["name"], "provider": desk["provider"], "model": desk["model"],
         "start_date": desk["start_date"], "end_date": desk["end_date"], "current_date": cur, "phase": desk["phase"],
         "visible_through": str(seen) if seen else None, "next_day": str(data.next_day(cur) or "") or None,
@@ -67,7 +67,40 @@ def desk_summary(store: Store, data: DeskData, desk: dict) -> dict:
         "days_done": store.scalar("SELECT COUNT(*) FROM equity WHERE desk_id = ?", (did,)) or 0,
         "days_total": int(((data.days >= pd.Timestamp(desk["start_date"])) &
                            (data.days <= pd.Timestamp(desk["end_date"]))).sum()),
+        "mode": desk.get("mode", "replay"),
     }
+    return live_summary(store, data, desk, out) if desk.get("mode") == "live" else out
+
+
+def live_summary(store: Store, data: DeskData, desk: dict, out: dict) -> dict:
+    """A live desk's figures come from the holdings you reported, marked at the last close."""
+    from src.desk.live import holding_rows
+    from src.live import update as live_update
+
+    hs = holding_rows(store, data, desk)
+    seen = visible_through(data, desk)
+    prior = data.prev_close_day(seen) if seen else None
+    day = 0.0
+    for h in hs:
+        a, b = data.raw_close(h["symbol"], seen) if seen else None, data.raw_close(h["symbol"], prior) if prior else None
+        if a is not None and b is not None and h["entry_date"] < str(seen):
+            day += (a - b) * h["quantity"]
+    info = live_update.built(data.cfg)
+    out.update(open_positions=len(hs), exposure=sum((h["last_close"] or h["entry_price"]) * h["quantity"] for h in hs),
+               open_pnl=sum(h["pnl"] or 0 for h in hs), day_pnl=day, last_session=str(seen) if seen else None,
+               urgent=sum(1 for h in hs if h["advice"]["urgent"]), equity=None, total_return=None,
+               days_total=None, live={"built_at": info.get("built_at"), "last_price_day": info.get("last_price_day"),
+                                      "day": info.get("day"),
+                                      "planned_at": store.scalar("SELECT planned_at FROM days WHERE desk_id = ? AND "
+                                                                 "trade_date = ?", (desk["id"], desk["current_date"]))})
+    return out
+
+
+def held_symbols(store: Store, desk: dict) -> set[str]:
+    if desk.get("mode") == "live":
+        return {r["symbol"] for r in store.rows("SELECT symbol FROM holdings WHERE desk_id = ? AND status = 'open'",
+                                                (desk["id"],))}
+    return {p["signal"]["symbol"] for p in desk["book"]["positions"]}
 
 
 def recent_days(data: DeskData, through, n: int) -> date | None:
@@ -89,7 +122,7 @@ def watchlist(store: Store, data: DeskData, desk: dict, d: str | None = None) ->
     rows = store.rows("SELECT * FROM watchlist WHERE desk_id = ? AND trade_date = ? ORDER BY added_at, symbol", (did, d))
     plans = {p["symbol"]: p for p in store.rows("SELECT * FROM plans WHERE desk_id = ? AND trade_date = ?", (did, d))}
     pending = store.rows("SELECT * FROM pending_orders WHERE desk_id = ? AND trade_date = ? AND status = 'pending'", (did, d))
-    held = {p["signal"]["symbol"] for p in desk["book"]["positions"]}
+    held = held_symbols(store, desk)
     out = []
     for w in rows:
         s = w["symbol"]
@@ -194,7 +227,7 @@ def stock_detail(store: Store, data: DeskData, desk: dict, symbol: str, d: str |
         prev = data.raw_close(symbol, p) if p else None
     morning = is_today and desk["phase"] == "morning"
     removed = bool(watch and watch["removed"])
-    return {
+    out = {
         "symbol": symbol, "name": data.names.get(symbol, symbol), "trade_date": d, "is_today": is_today,
         "visible_through": str(seen) if seen else None,
         "price": {"last_close": close, "prev_close": prev,
@@ -232,7 +265,34 @@ def stock_detail(store: Store, data: DeskData, desk: dict, symbol: str, d: str |
         },
         "trace_steps": store.scalar("SELECT COUNT(*) FROM trace_steps WHERE desk_id = ? AND trade_date = ? AND symbol = ?",
                                     (did, d, symbol)) or 0,
+        "mode": desk.get("mode", "replay"),
     }
+    return live_detail(store, data, desk, out) if desk.get("mode") == "live" else out
+
+
+def live_detail(store: Store, data: DeskData, desk: dict, out: dict) -> dict:
+    from src.desk.live import holding_rows, suggested_quantity
+
+    sym, morning = out["symbol"], out["is_today"] and desk["phase"] == "morning"
+    h = next((x for x in holding_rows(store, data, desk) if x["symbol"] == sym), None)
+    plan = out["plan"]
+    out["holding"] = h
+    out["position"] = None if h is None else {
+        "quantity": h["quantity"], "entry_price": h["entry_price"], "entry_date": h["entry_date"], "stop": h["stop"],
+        "target": h["target"], "days": h["checks"]["days_held"], "max_hold_days": h["max_hold_days"],
+        "source": h["source"]}
+    marks = []
+    for r in store.rows("SELECT * FROM holdings WHERE desk_id = ? AND symbol = ?", (desk["id"], sym)):
+        marks.append({"trade_date": r["entry_date"], "side": "buy", "price": r["entry_price"], "quantity": r["quantity"]})
+        if r["status"] == "closed":
+            marks.append({"trade_date": r["exit_date"], "side": "sell", "price": r["exit_price"], "quantity": r["quantity"]})
+    out["chart"]["markers"] = marks
+    ref = out["forecast"]["reference"]
+    out["suggested_quantity"] = suggested_quantity(desk, ref, plan["stop"]) if plan and ref else None
+    removed = bool(out["watch"] and out["watch"]["removed"])
+    out["actions"] = {"buy": False, "exit": False, "bought": morning and h is None, "sold": h is not None,
+                      "remove": morning and out["watch"] is not None and not removed, "restore": morning and removed}
+    return out
 
 
 def trace(store: Store, desk_id: int, d: str, symbol: str | None) -> list[dict]:

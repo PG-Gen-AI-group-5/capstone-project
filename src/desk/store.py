@@ -3,7 +3,8 @@
 Market data is not copied here: prices, features and model forecasts stay in the Parquet lake and data/derived.
 This file holds what the desk produces and what people do on it:
 
-    desks           one paper-trading account replaying a stretch of history day by day
+    desks           one account: `replay` (paper trading through history, day by day) or `live` (daily
+                    suggestions for the next trading day, with the trades a person reports in `holdings`)
     days            each trading day the desk has reached: the Planner's output and LLM usage
     watchlist       the stocks on the desk that day (picked by the Planner, or added by a person)
     plans           one per analysed stock and day: the Forecaster's plan, the debate and the Critic's verdict
@@ -15,7 +16,8 @@ This file holds what the desk produces and what people do on it:
     equity          cash, positions and equity at each close
     events          the desk's feed: plans, agent notes, fills
     trace_steps     every agent step (LLM call or offline rule), as in runs/<id>/trace.jsonl
-    jobs            background work started from the app (create a desk, advance days, analyse a stock)
+    jobs            background work started from the app (create a desk, advance days, analyse a stock, live update)
+    holdings        live desks: a trade the person took (bought at their price), monitored until they report the exit
 
 Each morning and each session is written in one transaction, so a crash leaves the desk at the last whole step.
 """
@@ -29,7 +31,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2                       # 2: desks.mode and the holdings table (live desks)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -37,6 +39,7 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS desks (
     id           INTEGER PRIMARY KEY,
     name         TEXT NOT NULL UNIQUE,
+    mode         TEXT NOT NULL DEFAULT 'replay',   -- replay | live
     provider     TEXT NOT NULL,              -- offline | openai_compatible | anthropic
     model        TEXT,                       -- the LLM model name, for display
     start_date   TEXT NOT NULL,
@@ -223,7 +226,7 @@ CREATE TABLE IF NOT EXISTS trace_steps (
 CREATE TABLE IF NOT EXISTS jobs (
     id          INTEGER PRIMARY KEY,
     desk_id     INTEGER REFERENCES desks(id) ON DELETE CASCADE,
-    kind        TEXT NOT NULL,               -- create | advance | analyse
+    kind        TEXT NOT NULL,               -- create | advance | analyse | live
     params      TEXT NOT NULL DEFAULT '{}',
     status      TEXT NOT NULL,               -- queued | running | cancelling | done | failed | cancelled
     message     TEXT NOT NULL DEFAULT '',
@@ -235,7 +238,29 @@ CREATE TABLE IF NOT EXISTS jobs (
     finished_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS holdings (
+    id            INTEGER PRIMARY KEY,
+    desk_id       INTEGER NOT NULL REFERENCES desks(id) ON DELETE CASCADE,
+    symbol        TEXT NOT NULL,
+    plan_id       INTEGER REFERENCES plans(id) ON DELETE SET NULL,
+    source        TEXT NOT NULL,             -- agents (an accepted plan) | manual
+    setup_type    TEXT NOT NULL DEFAULT 'none',
+    entry_date    TEXT NOT NULL,
+    entry_price   REAL NOT NULL,
+    quantity      INTEGER NOT NULL,
+    stop          REAL NOT NULL,
+    target        REAL NOT NULL,
+    max_hold_days INTEGER NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'open',      -- open | closed
+    exit_date     TEXT,
+    exit_price    REAL,
+    trade_id      INTEGER,                   -- the trades row written when it was closed
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS ix_plans_day    ON plans (desk_id, trade_date);
+CREATE INDEX IF NOT EXISTS ix_holdings     ON holdings (desk_id, status);
 CREATE INDEX IF NOT EXISTS ix_orders_day   ON orders (desk_id, trade_date);
 CREATE INDEX IF NOT EXISTS ix_trades_exit  ON trades (desk_id, exit_date);
 CREATE INDEX IF NOT EXISTS ix_events_desk  ON events (desk_id, id);
@@ -262,9 +287,16 @@ class Store:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._write_lock = threading.Lock()
-        with self.connect() as con:
+        con = self.connect()
+        try:
             con.executescript(SCHEMA)
-            con.execute("INSERT OR IGNORE INTO meta VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
+            cols = {r[1] for r in con.execute("PRAGMA table_info(desks)")}
+            if "mode" not in cols:                                   # version 1 databases
+                con.execute("ALTER TABLE desks ADD COLUMN mode TEXT NOT NULL DEFAULT 'replay'")
+            con.execute("INSERT OR REPLACE INTO meta VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
+            con.commit()
+        finally:
+            con.close()
 
     def connect(self) -> sqlite3.Connection:
         con = sqlite3.connect(self.path, timeout=30, check_same_thread=False)
