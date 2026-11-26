@@ -29,7 +29,7 @@ def data_fingerprint(cfg: Config) -> dict:
         path = cfg.derived_dir / stage / "_manifest.json"
         if path.exists():
             info = json.loads(path.read_text(encoding="utf-8"))
-            out[stage] = {k: v for k, v in info.items() if k not in ("git_commit", "built_at")}
+            out[stage] = {k: v for k, v in info.items() if k not in ("git_commit", "built_at", "pipeline")}
     return out
 
 

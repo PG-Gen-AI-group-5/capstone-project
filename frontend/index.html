@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Trading with AI</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a4fd7'/%3E%3Cpath d='M10 8v4M10 20v4M16 7v3M16 22v3M22 9v3M22 19v3' stroke='white' stroke-width='1.8' stroke-linecap='round'/%3E%3Crect x='8' y='12' width='4' height='8' rx='1' fill='white'/%3E%3Crect x='14.2' y='10.2' width='3.6' height='11.6' rx='1' fill='none' stroke='white' stroke-width='1.6'/%3E%3Crect x='20' y='12' width='4' height='7' rx='1' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-logo" viewBox="0 0 24 24">
+      <path d="M6 3v4M6 15v6M12 2v4M12 16v6M18 4v3M18 13v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      <rect x="4" y="7" width="4" height="8" rx="1" fill="currentColor"/>
+      <rect x="10.2" y="6.2" width="3.6" height="9.6" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <rect x="16" y="7" width="4" height="6" rx="1" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-dash" viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4v4h4M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-analysis" viewBox="0 0 24 24"><path d="M5 20v-8M11 20V5M17 20v-6M3 20h18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.5v9l7-4.5z" fill="currentColor"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-cross" viewBox="0 0 16 16"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="app" id="app">
+  <aside class="rail">
+    <div class="brand"><span class="logo"><svg aria-hidden="true"><use href="#i-logo"/></svg></span><span class="brand-name">Trading with AI</span></div>
+    <nav class="rail-nav" aria-label="Main">
+      <button type="button" class="nav-btn" data-view="dashboard"><svg aria-hidden="true"><use href="#i-dash"/></svg>Dashboard</button>
+      <button type="button" class="nav-btn" data-view="tradebook"><svg aria-hidden="true"><use href="#i-book"/></svg>Trade book</button>
+      <button type="button" class="nav-btn" data-view="history"><svg aria-hidden="true"><use href="#i-history"/></svg>Trade history</button>
+      <button type="button" class="nav-btn" data-view="analysis"><svg aria-hidden="true"><use href="#i-analysis"/></svg>Analysis</button>
+    </nav>
+    <div class="session" id="session-card" hidden>
+      <div class="session-top"><span>Trading day</span><span class="session-state" id="rail-state">Pre-open</span></div>
+      <div class="session-time mono" id="rail-day">—</div>
+      <div class="meter" id="rail-meter" role="meter" aria-label="Days replayed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="rail-meter-fill"></span></div>
+      <div class="session-scale"><span id="rail-start"></span><span id="rail-end"></span></div>
+      <button type="button" class="btn btn-rail btn-block" id="run-day"><svg width="14" height="14" aria-hidden="true"><use href="#i-play"/></svg>Run the day</button>
+      <div class="run-more">
+        <label class="sr-only" for="run-n">Days to run</label>
+        <select class="rail-select" id="run-n">
+          <option value="5">5 days</option>
+          <option value="20" selected>20 days</option>
+          <option value="60">60 days</option>
+          <option value="250">to the end</option>
+        </select>
+        <button type="button" class="btn btn-rail-ghost" id="run-many">Run</button>
+      </div>
+      <p class="session-note" id="rail-note"></p>
+    </div>
+    <div class="rail-foot">
+      <div class="user-chip">
+        <span class="avatar" id="desk-avatar">—</span>
+        <span class="user-text"><span class="user-name" id="desk-name">No desk</span><span class="user-email" id="desk-provider"></span></span>
+      </div>
+      <label class="sr-only" for="desk-select">Desk</label>
+      <select class="rail-select" id="desk-select"></select>
+      <div class="rail-row">
+        <button type="button" class="nav-btn" id="new-desk-btn"><svg aria-hidden="true"><use href="#i-plus"/></svg>New desk</button>
+        <button type="button" class="link-btn" id="delete-desk" hidden>Delete</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="mobilebar">
+      <div class="brand"><span class="logo"><svg aria-hidden="true"><use href="#i-logo"/></svg></span><span class="brand-name">Trading with AI</span></div>
+      <div class="mobile-actions">
+        <label class="sr-only" for="desk-select-m">Desk</label>
+        <select class="input input-sm" id="desk-select-m"></select>
+        <button type="button" class="btn btn-primary btn-sm" id="run-day-m">Run the day</button>
+      </div>
+    </div>
+
+    <header class="page-head">
+      <div>
+        <h1 id="page-title">Dashboard</h1>
+        <p class="page-sub" id="page-sub"></p>
+      </div>
+      <div class="head-meta">
+        <span class="pill" id="head-pill"><span class="live-dot" aria-hidden="true"></span><span id="head-clock">—</span></span>
+        <span class="pill" id="provider-pill">—</span>
+        <span class="pill pill-sample" title="The desk replays past trading days as if they were live: each morning the agents see only data up to the previous close.">Replay of history</span>
+      </div>
+    </header>
+
+    <div class="job-banner" id="job-banner" role="status" hidden>
+      <div class="job-text"><strong id="job-title">Working</strong><span id="job-message"></span></div>
+      <div class="meter job-meter"><span id="job-meter-fill"></span></div>
+      <button type="button" class="btn btn-secondary btn-sm" id="job-cancel">Cancel</button>
+    </div>
+
+    <section class="card empty-hero" id="no-desk" hidden>
+      <h2>Start a desk</h2>
+      <p>A desk is a paper-trading account that replays history one trading day at a time. Each morning the agents
+        (Planner, Bull and Bear analysts, Forecaster, Critic and Exit Monitor) plan trades with data up to the previous
+        close; the session then fills those plans at the open, with Indian delivery costs.</p>
+      <button type="button" class="btn btn-primary" id="no-desk-create">Create a desk</button>
+    </section>
+
+    <!-- Dashboard -->
+    <section class="view" id="view-dashboard">
+      <div class="kpis">
+        <div class="kpi"><span class="kpi-label">Day P&amp;L</span><span class="kpi-value" id="k-day">—</span><span class="kpi-sub" id="k-day-sub"></span></div>
+        <div class="kpi"><span class="kpi-label">Open positions</span><span class="kpi-value" id="k-pos">—</span><span class="kpi-sub" id="k-pos-sub"></span></div>
+        <div class="kpi"><span class="kpi-label">Trades for the open</span><span class="kpi-value" id="k-sig">—</span><span class="kpi-sub" id="k-sig-sub"></span></div>
+        <div class="kpi"><span class="kpi-label">Win rate, last month</span><span class="kpi-value" id="k-win">—</span><span class="kpi-sub" id="k-win-sub"></span></div>
+      </div>
+
+      <div class="dash-grid">
+        <article class="card watch">
+          <header class="card-head">
+            <div>
+              <h2>Today's watchlist</h2>
+              <p class="card-sub" id="watch-count"></p>
+            </div>
+            <form class="add-form" id="add-form" novalidate>
+              <label class="sr-only" for="add-ticker">Stock to analyse</label>
+              <input class="input" id="add-ticker" list="ticker-options" placeholder="Analyse a stock, e.g. SBIN" autocomplete="off">
+              <button class="btn btn-primary" type="submit" id="add-btn">Add</button>
+            </form>
+          </header>
+          <p class="form-error card-error" id="add-error" role="alert"></p>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th scope="col">Stock</th>
+                  <th scope="col">Plan</th>
+                  <th scope="col" class="r">Last close</th>
+                  <th scope="col" class="r">Change</th>
+                  <th scope="col">20 days</th>
+                  <th scope="col" class="r">RSI 14</th>
+                  <th scope="col" class="r">vs EMA20</th>
+                  <th scope="col">Setup</th>
+                  <th scope="col"><span class="sr-only">Remove</span></th>
+                </tr>
+              </thead>
+              <tbody id="watch-body"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <div class="side">
+          <article class="card feed-card">
+            <header class="card-head">
+              <div><h2>Desk feed</h2><p class="card-sub">Plans, agent notes and fills, newest first</p></div>
+            </header>
+            <div class="feed-tools">
+              <div class="seg" id="feed-filter" role="group" aria-label="Filter the feed">
+                <button type="button" data-value="all" aria-pressed="true">All</button>
+                <button type="button" data-value="plan" aria-pressed="false">Plans</button>
+                <button type="button" data-value="agent" aria-pressed="false">Agents</button>
+                <button type="button" data-value="trade" aria-pressed="false">Trades</button>
+              </div>
+            </div>
+            <ol class="feed-list" id="feed-list"></ol>
+          </article>
+        </div>
+
+        <article class="card detail">
+          <div id="detail-empty" class="empty-state" hidden>The agents' picks for the day show here. Add a stock above to have them analyse it.</div>
+          <div id="detail-main" hidden>
+            <header class="detail-head">
+              <div class="detail-id"><span class="detail-sym mono" id="d-sym"></span><span class="detail-name" id="d-name"></span></div>
+              <div class="detail-price"><span class="detail-ltp num" id="d-ltp"></span><span class="detail-chg num" id="d-chg"></span></div>
+              <div class="detail-setup" id="d-setup"></div>
+            </header>
+            <div class="detail-body">
+              <div class="detail-chart">
+                <div class="legend" aria-hidden="true">
+                  <span><i class="lk" style="background:var(--series-1)"></i>Close</span>
+                  <span><i class="lk" style="background:var(--series-2)"></i>EMA20</span>
+                  <span><i class="lk lk-dash"></i><i class="lk lk-band" style="background:var(--series-3)"></i><span id="band-legend">Forecast midpoint and 50% / 80% range</span></span>
+                  <span><i class="lk lk-stop"></i>Stop / target</span>
+                </div>
+                <div class="chart" id="price-chart" tabindex="0" aria-label="Daily price chart. Use the left and right arrow keys to read values."></div>
+                <details class="data-view" id="price-details">
+                  <summary>Show the last 15 sessions as a table</summary>
+                  <div id="price-table"></div>
+                </details>
+              </div>
+              <div class="detail-values">
+                <h3>Indicators the agents saw</h3>
+                <p class="card-sub" id="d-values-sub"></p>
+                <dl class="values" id="d-values"></dl>
+              </div>
+            </div>
+            <div class="detail-lower">
+              <section>
+                <h3>Setup checklist</h3>
+                <p class="card-sub" id="d-checks-sub"></p>
+                <ul class="checks" id="d-checks"></ul>
+                <div class="forecast" id="d-forecast"></div>
+              </section>
+              <section>
+                <h3>Agents' report <span class="chip chip-preview" id="d-report-chip">Plan</span></h3>
+                <div class="report" id="d-report"></div>
+                <div class="actions" id="d-actions"></div>
+                <p class="form-error" id="d-action-error" role="alert"></p>
+                <details class="data-view" id="trace-details">
+                  <summary id="trace-summary">Show the agent trace</summary>
+                  <ol class="trace-list" id="trace-list"></ol>
+                </details>
+                <p class="disclaimer">Paper trading on past data, for research. Not investment advice.</p>
+              </section>
+            </div>
+          </div>
+        </article>
+
+        <article class="card pipeline-card">
+          <header class="card-head">
+            <div><h2>AI pipeline</h2><p class="card-sub">What this desk runs on</p></div>
+          </header>
+          <ul class="pipeline" id="pipeline"></ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- Trade book -->
+    <section class="view" id="view-tradebook" hidden>
+      <div class="kpis">
+        <div class="kpi"><span class="kpi-label">Day P&amp;L</span><span class="kpi-value" id="t-day">—</span><span class="kpi-sub" id="t-day-sub"></span></div>
+        <div class="kpi"><span class="kpi-label">Booked P&amp;L</span><span class="kpi-value" id="t-real">—</span><span class="kpi-sub" id="t-real-sub"></span></div>
+        <div class="kpi"><span class="kpi-label">Open P&amp;L</span><span class="kpi-value" id="t-unreal">—</span><span class="kpi-sub" id="t-unreal-sub"></span></div>
+        <div class="kpi"><span class="kpi-label">Orders executed</span><span class="kpi-value" id="t-orders">—</span><span class="kpi-sub" id="t-orders-sub"></span></div>
+      </div>
+      <article class="card">
+        <header class="card-head"><div><h2>Open positions</h2><p class="card-sub">Delivery (CNC), held up to the plan's holding period. Stops and targets are checked every session.</p></div></header>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Stock</th>
+                <th scope="col" class="r">Qty</th>
+                <th scope="col" class="r">Avg price</th>
+                <th scope="col" class="r">Last close</th>
+                <th scope="col" class="r">P&amp;L</th>
+                <th scope="col" class="r">Return</th>
+                <th scope="col" class="r">Stop / target</th>
+                <th scope="col" class="r">Day</th>
+                <th scope="col"><span class="sr-only">Action</span></th>
+              </tr>
+            </thead>
+            <tbody id="pos-body"></tbody>
+          </table>
+        </div>
+        <p class="empty-state" id="pos-empty" hidden>No open positions.</p>
+        <p class="form-error card-error" id="pos-error" role="alert"></p>
+      </article>
+      <article class="card">
+        <header class="card-head"><div><h2>Orders for the open</h2><p class="card-sub" id="pending-sub">Your buys and exits, filled at the next session's open</p></div></header>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th scope="col">Stock</th><th scope="col">Order</th><th scope="col">Session</th><th scope="col" class="r">Stop / target</th><th scope="col"><span class="sr-only">Cancel</span></th></tr></thead>
+            <tbody id="pending-body"></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="card">
+        <header class="card-head"><div><h2>Executed orders</h2><p class="card-sub" id="orders-sub">The last session's trade book, newest first</p></div></header>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Order ID</th>
+                <th scope="col">Stock</th>
+                <th scope="col">Side</th>
+                <th scope="col">Type</th>
+                <th scope="col" class="r">Qty</th>
+                <th scope="col" class="r">Price</th>
+                <th scope="col">Source</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="orders-body"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <!-- Trade history -->
+    <section class="view" id="view-history" hidden>
+      <div class="filters">
+        <div class="seg" id="h-period" role="group" aria-label="Period">
+          <button type="button" data-value="5" aria-pressed="false">1W</button>
+          <button type="button" data-value="21" aria-pressed="false">1M</button>
+          <button type="button" data-value="63" aria-pressed="false">3M</button>
+          <button type="button" data-value="0" aria-pressed="true">All</button>
+        </div>
+        <label class="sr-only" for="h-symbol">Stock</label>
+        <select class="input" id="h-symbol"></select>
+        <div class="seg" id="h-result" role="group" aria-label="Result">
+          <button type="button" data-value="all" aria-pressed="true">All</button>
+          <button type="button" data-value="win" aria-pressed="false">Wins</button>
+          <button type="button" data-value="loss" aria-pressed="false">Losses</button>
+        </div>
+        <span class="filter-summary" id="h-summary"></span>
+      </div>
+      <article class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Exit date</th>
+                <th scope="col">Stock</th>
+                <th scope="col" class="r">Qty</th>
+                <th scope="col" class="r">Entry</th>
+                <th scope="col" class="r">Exit</th>
+                <th scope="col" class="r">P&amp;L</th>
+                <th scope="col" class="r">Return</th>
+                <th scope="col" class="r">Held</th>
+                <th scope="col">Source</th>
+                <th scope="col">Setup</th>
+                <th scope="col">Exit reason</th>
+              </tr>
+            </thead>
+            <tbody id="h-body"></tbody>
+          </table>
+        </div>
+        <p class="empty-state" id="h-empty" hidden>No trades match these filters. Try a longer period or a different stock.</p>
+        <div class="more-row" id="h-more-row"><button type="button" class="btn btn-secondary btn-sm" id="h-more">Show more</button></div>
+      </article>
+    </section>
+
+    <!-- Analysis -->
+    <section class="view" id="view-analysis" hidden>
+      <div class="filters">
+        <div class="seg" id="a-period" role="group" aria-label="Period">
+          <button type="button" data-value="5" aria-pressed="false">1W</button>
+          <button type="button" data-value="21" aria-pressed="false">1M</button>
+          <button type="button" data-value="63" aria-pressed="false">3M</button>
+          <button type="button" data-value="0" aria-pressed="true">All</button>
+        </div>
+        <label class="sr-only" for="a-symbol">Stock</label>
+        <select class="input" id="a-symbol"></select>
+      </div>
+      <p class="card empty-state" id="ana-empty" hidden>No closed trades in this period. Pick a longer period or another stock.</p>
+      <div class="view" id="ana-content">
+        <div class="kpis kpis-5">
+          <div class="kpi kpi-hero"><span class="kpi-label">Net P&amp;L</span><span class="kpi-value" id="a-net">—</span><span class="kpi-sub" id="a-net-sub"></span></div>
+          <div class="kpi"><span class="kpi-label">Win rate</span><span class="kpi-value" id="a-win">—</span><span class="kpi-sub" id="a-win-sub"></span></div>
+          <div class="kpi"><span class="kpi-label">Profit factor</span><span class="kpi-value" id="a-pf">—</span><span class="kpi-sub" id="a-pf-sub"></span></div>
+          <div class="kpi"><span class="kpi-label">Avg win ÷ avg loss</span><span class="kpi-value" id="a-payoff">—</span><span class="kpi-sub" id="a-payoff-sub"></span></div>
+          <div class="kpi"><span class="kpi-label">Max drawdown</span><span class="kpi-value" id="a-dd">—</span><span class="kpi-sub" id="a-dd-sub"></span></div>
+        </div>
+        <div class="ana-grid">
+          <article class="card span-8">
+            <header class="card-head"><div><h2>Equity curve</h2><p class="card-sub">Cumulative net P&amp;L after each closed trade, after costs</p></div></header>
+            <div class="card-body">
+              <div class="chart" id="ch-equity" tabindex="0" aria-label="Equity curve. Use the left and right arrow keys to step through trades."></div>
+              <details class="data-view"><summary>Show as a table</summary><div id="tb-equity"></div></details>
+            </div>
+          </article>
+          <article class="card span-4">
+            <header class="card-head"><div><h2>What stands out</h2><p class="card-sub">Calculated from the trades in this view</p></div></header>
+            <ul class="insights" id="a-insights"></ul>
+          </article>
+          <article class="card span-6">
+            <header class="card-head"><div><h2>P&amp;L by stock</h2><p class="card-sub">Net result per stock, best first</p></div></header>
+            <div class="card-body">
+              <div class="chart" id="ch-stock"></div>
+              <p class="note" id="stock-note" hidden>One stock is selected. Choose All stocks to compare them.</p>
+              <details class="data-view"><summary>Show as a table</summary><div id="tb-stock"></div></details>
+            </div>
+          </article>
+          <article class="card span-6">
+            <header class="card-head"><div><h2>Win rate by entry source</h2><p class="card-sub">Do the agents' plans beat your own orders?</p></div></header>
+            <div class="card-body">
+              <div class="chart" id="ch-source"></div>
+              <details class="data-view"><summary>Show as a table</summary><div id="tb-source"></div></details>
+            </div>
+          </article>
+          <article class="card span-6">
+            <header class="card-head"><div><h2>P&amp;L by setup</h2><p class="card-sub">Net result of trades by the setup that was live when they were planned</p></div></header>
+            <div class="card-body">
+              <div class="chart" id="ch-setup"></div>
+              <details class="data-view"><summary>Show as a table</summary><div id="tb-setup"></div></details>
+            </div>
+          </article>
+          <article class="card span-6">
+            <header class="card-head"><div><h2>Return per trade</h2><p class="card-sub">How many trades landed in each 1% return band, after costs. Bands left of 0% are losses.</p></div></header>
+            <div class="card-body">
+              <div class="chart" id="ch-dist"></div>
+              <details class="data-view"><summary>Show as a table</summary><div id="tb-dist"></div></details>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <nav class="tabbar" aria-label="Main">
+    <button type="button" class="tab-btn" data-view="dashboard"><svg aria-hidden="true"><use href="#i-dash"/></svg>Dashboard</button>
+    <button type="button" class="tab-btn" data-view="tradebook"><svg aria-hidden="true"><use href="#i-book"/></svg>Trade book</button>
+    <button type="button" class="tab-btn" data-view="history"><svg aria-hidden="true"><use href="#i-history"/></svg>History</button>
+    <button type="button" class="tab-btn" data-view="analysis"><svg aria-hidden="true"><use href="#i-analysis"/></svg>Analysis</button>
+  </nav>
+</div>
+
+<dialog class="dialog" id="desk-dialog" aria-labelledby="dlg-title">
+  <form class="form" id="desk-form" method="dialog" novalidate>
+    <div>
+      <h2 id="dlg-title">New desk</h2>
+      <p class="card-sub">The desk starts on the morning of the first trading day you pick and moves forward one day at a time.</p>
+    </div>
+    <div class="field">
+      <label for="f-name">Name</label>
+      <input class="input" id="f-name" maxlength="60" required>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="f-start">First day</label>
+        <input class="input" id="f-start" type="date" required>
+      </div>
+      <div class="field">
+        <label for="f-end">Last day <span class="hint">(optional)</span></label>
+        <input class="input" id="f-end" type="date">
+      </div>
+    </div>
+    <span class="hint" id="f-window"></span>
+    <div class="field">
+      <label for="f-capital">Starting capital (₹)</label>
+      <input class="input" id="f-capital" type="number" min="10000" step="10000" required>
+    </div>
+    <div class="field">
+      <label for="f-provider">Agents</label>
+      <select class="input input-full" id="f-provider"></select>
+      <span class="hint" id="f-provider-hint"></span>
+    </div>
+    <p class="form-error" id="desk-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-secondary" id="desk-cancel">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="desk-submit">Create desk</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="ticker-options"></datalist>
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

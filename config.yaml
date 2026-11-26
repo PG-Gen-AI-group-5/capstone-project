@@ -196,6 +196,79 @@ models:
       samples_per_epoch: 30000
       max_epochs: 15
 
+# LLM layer (src/llm). provider: offline = each agent's rule-based stand-in, no API key needed;
+# openai_compatible = any OpenAI-style Chat Completions endpoint, set by JFF_LLM_* variables in .env;
+# anthropic = Claude through the official SDK (ANTHROPIC_API_KEY in .env). The choice and the model's
+# training cutoff are task 1.10; agent results are scored only on dates after the cutoff.
+llm:
+  provider: openai_compatible
+  model: claude-opus-5-5           # for provider anthropic; openai_compatible uses JFF_LLM_MODEL from .env
+  openai_compatible:               # names of the .env variables (never the values) and request options
+    base_url_env: JFF_LLM_BASE_URL
+    api_key_env: JFF_LLM_API_KEY
+    model_env: JFF_LLM_MODEL
+    timeout_env: JFF_LLM_TIMEOUT
+    temperature: 0.0
+    json_mode: false               # send response_format json_object; only for endpoints that support it
+    price_per_mtok: {input: 0.0, output: 0.0}   # set if the endpoint charges, so the daily budget applies
+  training_cutoff: null            # set with the model (task 1.10)
+  effort: medium                   # low | medium | high | xhigh | max
+  max_tokens: 16000
+  timeout_sec: 120
+  max_retries: 2
+  daily_budget_usd: 5.0            # paid calls stop for the day once spent; the offline rules take over
+  daily_call_limit: 500            # LLM calls per day (all agents); the offline rules take over after it
+  price_per_mtok: {input: 4.0, output: 20.0, cache_read: 0.20, cache_write: 5.0}
+  prompt_versions: {}              # pin an agent's prompt, e.g. {critic: v1}; default: the latest file
+
+agents:
+  base_model: tft                  # the trained model whose forecast the agents see (task 12.6)
+  max_stocks_per_day: 5            # Planner: full analyses per day
+  min_planner_score: 2             # setup = 2, results/announcement/base forecast = 1 each
+  evidence_lookback_days: 30
+  min_edge: 0.05                   # Forecaster: bull - bear + (p_up - 0.5) needed for a long
+  min_risk_reward: 1.5             # Critic and Forecaster
+  max_confidence: 0.75             # Critic: until calibration (task 15.2)
+  critic_max_rounds: 2             # revise loops before the last verdict stands
+  high_vix: 0.20                   # India VIX level (as a fraction) the Bear calls high
+  hold_days: {pullback_uptrend: 7, breakout: 10, oversold_bounce: 5, none: 5}
+
+# Swing setups and trade levels (src/features/setups.py, tasks 10.3-10.4); RSI is on a 0-1 scale.
+setups:
+  stop_atr: 1.5                    # stop = close x (1 - 1.5 ATR%)
+  reward_risk: 2.0                 # target = close x (1 + 2 x 1.5 ATR%)
+  pullback: {ema20_gap_min: -0.02, ema20_gap_max: 0.01, rsi_min: 0.40, rsi_max: 0.60}
+  breakout: {dist_52w_high_min: -0.01, logvol_z_min: 0.5}
+  oversold: {rsi_max: 0.30}
+
+# Indian equity delivery costs per order (src/backtest/costs.py, task 17.2). Check against a broker calculator.
+costs:
+  brokerage_pct: 0.0
+  brokerage_max: 20.0
+  stt_pct: 0.001
+  exchange_pct: 0.0000297
+  sebi_per_crore: 10.0
+  stamp_buy_pct: 0.00015
+  gst_pct: 0.18
+  dp_per_sell: 15.93
+
+backtest:
+  models: [ma_crossover, arima, lstm, tft]     # forecasts turned into signals (task 16.8)
+  horizon: 5                                   # p_up horizon and holding period for model signals
+  default_threshold: 0.55                      # long when p_up >= threshold; tune per model on validation
+  thresholds: {}
+  agent_runs: []                               # agent run IDs to backtest beside the models
+  portfolio: {capital: 1000000, risk_per_trade: 0.01, max_positions: 5, max_position_pct: 0.2}
+
+# Paper-trading desk and its app (src/desk, src/api, frontend/). A desk replays history day by day: the agents
+# plan each morning, the backtest engine fills the plans in the session. Run: python -m src.api
+desk:
+  db: app/desk.sqlite              # under data/, so it stays out of git
+  periods: [inner, validation]     # days a desk may replay: where walk-forward forecasts exist. Never `test` (18.4).
+  capital: 1000000
+  history_days: 400                # feature history loaded before the window (charts, the Exit Monitor)
+  vol_model: lstm                  # whose volatility forecast draws the chart's range (the robust model, EDA 03)
+
 # Market regime labels (src/features/regime.py). Each label for day d uses closes up to d-1.
 regime:
   trend_ema_span: 200              # Nifty 50 close vs its 200-day EMA

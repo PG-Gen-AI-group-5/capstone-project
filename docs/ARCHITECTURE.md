@@ -38,30 +38,33 @@ capstone-project/
 │   └── figures/<topic>/
 ├── src/
 │   ├── config.py  timeutil.py                      exists
-│   ├── contracts.py                                1.6   shared pydantic models
+│   ├── contracts.py                                1.6   shared pydantic models (v1 exists; team review pending)
 │   ├── logsetup.py                                 1.8   structured logging, one file per run
 │   ├── ingest/                                     exists: collectors, tracker, coverage, DuckDB views
 │   ├── store/                                      point-in-time store
 │   │   ├── adjust.py                               2.4   adjusted prices
 │   │   ├── db.py                                   6.5   DuckDB connection over lake/ and derived/
-│   │   └── pit.py                                  6.6   the time rule: as_of, first_usable_day (exists); as_of readers
+│   │   └── pit.py                                  6.6   the time rule, AnnouncementIndex, prices_as_of (exist); news, flows, macro readers
 │   ├── features/  indicators.py build.py events.py regime.py setups.py news.py   10.1–10.4, 5.5
 │   ├── labels/    labels.py splits.py                               16.1–16.2
-│   ├── catalysts/ calendar.py                                       7.1–7.4
+│   ├── catalysts/ calendar.py                                       7.1–7.4  v1: results (notices or quarterly cycle), expiry, budget
 │   ├── retrieval/ chunk.py embed.py index.py search.py citations.py 8.1–8.5
 │   ├── memory/    events.py                                         9.1–9.3
 │   ├── models/    data.py base.py registry.py walkforward.py baselines.py arima.py sequence.py lstm.py tft.py __main__.py   16.3–16.9
-│   ├── llm/       client.py cache.py budget.py prompts/<agent>/v<N>.md                               11.1–11.4
-│   ├── agents/    planner.py retriever.py bull.py bear.py forecaster.py critic.py exit_monitor.py    12.1–12.9
-│   ├── graph/     state.py build.py routing.py                      13.1–13.3
-│   ├── tracing/   writer.py manifest.py load.py                     14.1–14.4
-│   ├── backtest/  signals.py engine.py costs.py portfolio.py        16.8, 17.1–17.5
+│   ├── llm/       client.py openai_compatible.py promptlib.py prompts/<agent>/v<N>.md   11.1–11.4  exists
+│   ├── agents/    context.py base.py planner.py retriever.py analysts.py forecaster.py critic.py exit_monitor.py   12.1–12.9  v1 (analysts.py = bull, bear, rebuttals)
+│   ├── graph/     build.py                                          13.1–13.3  exists (state and routing in build.py)
+│   ├── tracing/   writer.py                                         14.1–14.3  exists (trace JSONL, run manifest)
+│   ├── backtest/  signals.py engine.py costs.py run.py              16.8, 17.1–17.5  exists (portfolio in engine.py)
 │   ├── evaluation/ metrics.py bootstrap.py ablations.py explain_checks.py   18.1–18.7
 │   ├── analysis/  event_study.py plots.py                           helpers for EDA notebooks
-│   ├── pipeline/  stages.py __main__.py                             stage registry and command line
+│   ├── pipeline/  stages.py runner.py __main__.py                   stage registry, runner, command line (exists)
 │   ├── whatif.py                                                    15.1
-│   ├── run.py                                                       13.4  daily agent run
-│   └── dashboard/ app.py pages/                                     19.x  (streamlit run src/dashboard/app.py)
+│   ├── run.py                                                       13.4–13.6  agent runs: one day or a range, resume, positions (exists)
+│   ├── desk/      store.py data.py service.py views.py jobs.py __main__.py   paper-trading desk: daily inference + SQLite (exists)
+│   ├── api/       app.py __main__.py                                FastAPI backend for the app (exists)
+│   └── dashboard/ app.py                                            19.x  v1 exists (streamlit run src/dashboard/app.py)
+├── frontend/      index.html styles.css app.js                      the desk app (docs/design/trading-with-ai.html made real)
 └── tests/                     mirrors src/; fixtures/ holds small real data slices (1.7)
 ```
 
@@ -105,7 +108,7 @@ capstone-project/
 
 ## Pipeline stages
 
-Each stage is a function registered in `src/pipeline/stages.py`. It declares the tables it reads and writes, and it writes a `_manifest.json` beside its output: stage, date range, git commit, config hash, row count, input manifests, build time. Re-running a stage for the same dates overwrites the same output.
+Each stage is a function registered in `src/pipeline/stages.py`. It declares the tables it reads and writes, and it writes a `_manifest.json` beside its output: stage, git commit, row count and build time, plus the runner's record of the settings hash, input times and runtime. Re-running a stage overwrites the same output.
 
 | Stage | Module | Reads | Writes | Tasks |
 |---|---|---|---|---|
@@ -117,19 +120,26 @@ Each stage is a function registered in `src/pipeline/stages.py`. It declares the
 | `chunks` | `src.retrieval` | `announcement_text`, `news` | `derived/chunks`, `data/vector/` | 8.1–8.3 |
 | `events` | `src.memory` | `announcements`, `prices_adj`, `index_daily` | `derived/events` | 9.1 |
 | `forecasts` | `src.models` | `features_daily`, `labels`, `catalysts` | `data/models/<m>/`, `derived/forecasts/<m>/` | 16.3–16.7b |
-| `agent_run` | `src.run` → `src.graph` | everything, through `src.store.pit` | `runs/<id>/plans`, `runs/<id>/trace.jsonl` | 12–14 |
-| `backtest` | `src.backtest` | forecasts → signals, or plans → signals | `runs/<id>/journal`, `runs/<id>/equity` | 16.8, 17 |
+| `agent_run` | `src.run` → `src.graph` | features, forecasts, announcements, board meetings, calendar overrides (through `src.store.pit`) | `data/runs/agents-<period>/`: plans, exits, positions, trace, manifest | 12–14 |
+| `backtest` | `src.backtest` | prices_adj (raw OHLC), forecasts → signals, agent plans and exits → signals | `derived/backtest/<strategy>/`: journal, equity, summary | 16.8, 17 |
 | `evaluate` | `src.evaluation` | runs, labels | `runs/<id>/metrics`, `report/figures/` | 18 |
 
-Commands:
+Built so far (`src/pipeline/`): `ingest`, `prices_adj`, `features`, `labels`, `forecasts`, `evaluate`, `agent_run` and `backtest`. The `agents` target runs the last two. Each stage in `stages.py` lists what it reads (`lake:<table>`, `manual:<file>`, `stage:<name>`) and the `config.yaml` keys it depends on. After a run, the runner adds a `pipeline` record to the stage's manifest: the hash of those settings, the time of each input, and the runtime. A stage is out of date when it was never built, an input changed after it, its settings changed, or (for `ingest`) it hasn't run today. Stages rebuild full history, which takes seconds; there is no date range.
 
 ```
-python -m src.pipeline run <stage> --from 2023-01-01 --to 2023-12-31
-python -m src.pipeline run all --from ... --to ...
-python -m src.pipeline status            # last build of each stage, its date range and inputs
+python -m src.pipeline status                 # every stage: last build and whether it is up to date (and why not)
+python -m src.pipeline run all                # ingest -> prices_adj -> features -> labels -> forecasts -> evaluate
+python -m src.pipeline run all --no-ingest    # the same, offline
+python -m src.pipeline run data               # ingest, prices_adj, features, labels (the evening job)
+python -m src.pipeline run models --period validation --period inner
+python -m src.pipeline run agents --period validation   # agent run over 2023, then every strategy backtested
+python -m src.pipeline run features labels    # stages named explicitly always run
+python -m src.pipeline run forecasts --models lstm,tft --force    # retrain these models
 ```
 
-Until `src.pipeline` exists, the modelling stages run through `python -m src.models`:
+Group targets (`all`, `data`, `models`) skip stages that are up to date; `--force` runs them anyway. `forecasts` reuses saved forecasts whose model version (settings plus the content of the built inputs) is unchanged, so only changed models retrain. `evaluate` writes `derived/metrics/<period>.parquet`, the majority-guess reference and a split by VIX regime. The test period needs `--period test --freeze` (task 16.9).
+
+The modelling commands also work on their own:
 
 ```
 python -m src.models prepare                 # prices_adj -> features -> labels
@@ -226,17 +236,85 @@ The LSTM and TFT also have `load(cfg, folder, panel)` to rebuild a saved fold's 
 
 ### Signals (what the backtester accepts)
 
-`symbol`, `signal_date` (the `as_of`), `side` (long), `entry` (next open), `stop`, `target`, `max_hold_days` and `source` (model name or agent run ID).
+`symbol`, `signal_date` (the `as_of`), `side` (long), `entry` (next open), `stop`, `target`, `max_hold_days`, `source` (model name or agent run ID) and an optional `ref` (the desk's plan ID). A position sold at the open on an Exit Monitor or manual request has exit reason `exit`.
 
 - **Baselines:** the 16.8 rules turn forecasts into signals: for example, long when `p_up` is above a threshold tuned on validation, with the ATR stop and target from 10.4.
 - **Agents:** each agent `TradePlan` maps one-to-one onto a signal.
 
 ### Agents
 
+Built (v1): the seven agents run through the LangGraph graph in `src/graph/build.py`:
+
+```
+day:    START -> exit_monitor -> planner -> analyse (one branch per selected stock) -> END
+stock:  START -> retrieve -> debate (opening cases + one rebuttal round) -> forecast -> critique -> END
+        critique: accept -> END | reject -> END (no trade) | revise -> forecast (at most agents.critic_max_rounds times)
+```
+
+`python -m src.run --date D` (or `--from A --to B`) writes `data/runs/<run_id>/`. LLM providers (`llm.provider`):
+`openai_compatible` (any OpenAI-style Chat Completions endpoint, from `JFF_LLM_*` in `.env`; `src/llm/openai_compatible.py`),
+`anthropic` (Claude SDK) and `offline` (each agent's rule-based stand-in, no key needed). The agent's JSON schema is sent
+with the prompt; a reply that fails validation is retried once with the error, then the offline rules take over. Entry, stop and target always come from `src/features/setups.py`; the Critic rejects a
+plan that changes them, cites a record published at or after `as_of`, or cites evidence that wasn't retrieved.
+
 - Each agent is a LangGraph node, `def node(state: GraphState) -> dict`, returning a partial state update.
 - Prompts are versioned files in `src/llm/prompts/<agent>/v<N>.md`. Every output records the prompt version it used.
 - Every LLM call goes through `src.llm.client`, which handles the cache, cost log, pydantic validation of the JSON output, and retries.
 - Every call, tool use, debate turn and critique writes one trace step through `src.tracing.writer`.
+
+### The desk app (`src/desk`, `src/api`, `frontend/`)
+
+A **desk** is a paper-trading account that replays history one trading day at a time, so the agents run as daily
+inference rather than as a batch over a period. For trading day D:
+
+```
+morning(D)  08:30 IST   Exit Monitor on the open positions -> Planner -> retrieve/debate/forecast/critique per stock
+                        (the same day graph as src/run.py). Nothing after D-1's close is visible, in the agents or the app.
+            a person    can remove a stock (its plan is not traded), buy an analysed stock, exit a position, or add a
+                        stock for analysis. These are orders for D's open.
+session(D)              Book.session in src/backtest/engine.py: the backtester's rules, one day at a time
+                        (exits and entries at the open, stop before target, time exits at the close, Indian costs).
+```
+
+`advance` runs session(D) and then morning(next day). Each morning and each session is one SQLite transaction, so a
+crash leaves the desk at its last whole step. Desks may replay only `desk.periods` (inner folds and validation by
+default, where walk-forward forecasts exist); the test period stays frozen for task 18.4.
+
+**Database** (`desk.db`, default `data/app/desk.sqlite`, outside git). Market data is not copied; it stays in the lake
+and `data/derived`. Tables, defined in `src/desk/store.py`:
+
+| Table | One row per |
+|---|---|
+| `desks` | desk: LLM provider, window, capital, frozen settings, current day and phase, the engine's book (cash, positions) |
+| `days` | trading day reached: the Planner's output, LLM calls, cost and fallbacks |
+| `watchlist` | stock on the desk that day: picked by the Planner or added by a person; removed or not |
+| `plans` | analysed stock and day: the Forecaster's plan, the bull and bear cases, the Critic's verdict, revisions, catalysts |
+| `evidence` | record a plan could cite (announcements, base forecast, indicator and level records) |
+| `exit_decisions` | open position and day: the Exit Monitor's decision |
+| `pending_orders` | a person's buy or exit for the next session |
+| `orders` | fill or refused entry (exact prices and costs, so they add up to the cash) |
+| `trades` | closed round trip, with its source (agents or manual), setup and exit reason |
+| `equity` | close: cash, positions, equity |
+| `events` | line in the desk feed |
+| `trace_steps` | agent step (LLM call or offline rule), as in `runs/<id>/trace.jsonl` |
+| `jobs` | background job: create, advance or analyse, with progress |
+
+**API** (`python -m src.api`, FastAPI on 127.0.0.1:8000, which also serves `frontend/`):
+
+| Route | Does |
+|---|---|
+| `GET /api/meta` | LLM providers and whether each is configured, the replay window, symbols |
+| `GET/POST /api/desks`, `GET/DELETE /api/desks/{id}` | list, create (starts the first morning as a job), summary, delete |
+| `POST /api/desks/{id}/advance` | run N days as a job; `GET /api/jobs/{id}`, `POST /api/jobs/{id}/cancel` |
+| `GET/POST /api/desks/{id}/watchlist`, `DELETE .../watchlist/{symbol}` | today's list; add a stock (an analysis job); remove one |
+| `GET /api/desks/{id}/stocks/{symbol}` | chart (daily bars to the last visible close, EMA20/50, forecast band), indicators, setup checks, plan and debate, evidence, allowed actions |
+| `GET /api/desks/{id}/trace?date=&symbol=` | the agent steps behind a plan |
+| `POST/DELETE /api/desks/{id}/orders` | a person's buy or exit for the next open; cancel it |
+| `GET /api/desks/{id}/book`, `/trades`, `/equity`, `/days`, `/events` | trade book, history and analysis, the feed |
+
+The chart's range is the LSTM's volatility forecast (the model that held up in validation) around the base model's
+expected return; charts show prices on the share basis of their last visible day, so a later split never shows early.
+`python -m src.desk create|advance|list` runs the same steps without the server.
 
 ---
 
@@ -251,6 +329,7 @@ Group dependencies as optional extras in `pyproject.toml`, so each person instal
 | `models` | statsmodels, torch, one TFT library (record which one, and why, in the 16.7b notebook) |
 | `agents` | langgraph, the chosen LLM SDK, the vector store, the embedding model |
 | `dashboard` | streamlit, plotly |
+| `app` | fastapi, uvicorn (the desk app) |
 
 ---
 
