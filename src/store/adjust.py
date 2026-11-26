@@ -6,7 +6,9 @@ price times the product of the factors of all events after t.
 
 Where each factor comes from:
 - split, bonus: the ratios in NSE's subject text (both are multiplied when one subject has both)
-- rights: theoretical ex-rights price / close before the ex-date; issue price = face value + premium
+- rights: theoretical ex-rights price / close before the ex-date; issue price = face value + premium,
+  with the face value of the time (NSE's `face_value` is today's, so later splits are undone) and
+  every class of the issue counted (Tata Steel 2018 had fully and partly paid shares)
 - demerger, scheme of arrangement: open on the ex-date / close before it (NSE discovers the
   ex-demerger price in a special pre-open session); moves below `demerger_min_move` count as 1
 - data/manual/ca_adjustments.csv: hand-checked factors; they replace computed ones on the same
@@ -23,8 +25,8 @@ from src.config import Config
 from src.ingest.sources.nse_corporate import _BONUS, _SPLIT
 from src.store.db import read_table, write_manifest, write_table
 
-_RIGHTS = re.compile(r"rights\D*?(\d+)\s*:\s*(\d+).*?premium\s*(?:of\s*)?(?:rs\.?|re\.?|inr)?\s*(\d+(?:\.\d+)?)",
-                     re.IGNORECASE)
+_RIGHTS_CLASS = re.compile(r"(\d+)\s*:\s*(\d+)\D*?premium\s*(?:of\s*)?(?:rs\.?|re\.?|inr)?\s*(\d+(?:\.\d+)?)",
+                           re.IGNORECASE)
 MANUAL_FILE = "ca_adjustments.csv"
 MANUAL_COLUMNS = ["symbol", "ex_date", "factor", "kind", "note"]
 PRICE_COLUMNS = ["open", "high", "low", "close"]
@@ -51,10 +53,27 @@ def part_factor(part: tuple) -> float:
     return b / a if kind == "split" else b / (a + b)       # split: to/from; bonus new:held -> held/(new+held)
 
 
-def rights_terms(subject: str) -> tuple[int, int, float] | None:
-    """(new shares, shares held, premium) from 'Rights 1:15 @ Premium Rs 1247'."""
-    m = _RIGHTS.search(subject or "")
-    return (int(m[1]), int(m[2]), float(m[3])) if m and int(m[2]) > 0 else None
+def rights_terms(subject: str) -> list[tuple[int, int, float]]:
+    """(new shares, shares held, premium) for each class of a rights issue, e.g.
+    'Rights 1:15 @ Premium Rs 1247' -> [(1, 15, 1247.0)]; [] when the subject has none."""
+    s = subject or ""
+    if "rights" not in s.lower():
+        return []
+    return [(int(m[1]), int(m[2]), float(m[3])) for m in _RIGHTS_CLASS.finditer(s) if int(m[2]) > 0]
+
+
+def terp(cum: float, classes: list[tuple[int, int, float]], face: float) -> float:
+    """Theoretical ex-rights price per share: (cum + sum(new/held * issue)) / (1 + sum(new/held))."""
+    per_share = [(new / held, face + premium) for new, held, premium in classes]
+    return (cum + sum(x * issue for x, issue in per_share)) / (1 + sum(x for x, _ in per_share))
+
+
+def face_value_then(face: float, ex_date: pd.Timestamp, splits: list[tuple]) -> float:
+    """Face value on ex_date from today's: undo every split (ex_date, from, to) after it."""
+    for d, from_, to in splits:
+        if d > ex_date:
+            face *= from_ / to
+    return face
 
 
 def _first_trading_index(dates: np.ndarray, ex: np.datetime64) -> int | None:
@@ -99,22 +118,24 @@ def build_events(prices: pd.DataFrame, actions: pd.DataFrame, manual: pd.DataFra
         kind = "+".join(sorted({p[0] for p in ps}))
         add(symbol, ex_date, kind, factor, "subject_ratio", "; ".join(map(str, sorted(ps))), g, i)
 
+    splits: dict[str, list[tuple]] = {}
+    for (symbol, ex_date), ps in parts.items():
+        splits.setdefault(symbol, []).extend((ex_date, p[1], p[2]) for p in ps if p[0] == "split")
+
     for r in acts[acts["ca_type"] == "rights"].itertuples():
         g, i = locate(r.symbol, r.ex_date)
-        terms = rights_terms(r.subject)
-        if terms is None:
+        classes = rights_terms(r.subject)
+        if not classes:
             add(r.symbol, r.ex_date, "rights", np.nan, "unparsed", r.subject, g, i)
             continue
-        new, held, premium = terms
-        face = r.face_value if pd.notna(r.face_value) else 0.0
         if g is None or i is None or i == 0:
             add(r.symbol, r.ex_date, "rights", np.nan, "no_prices", r.subject, g, i)
             continue
+        face = face_value_then(r.face_value if pd.notna(r.face_value) else 0.0, r.ex_date, splits.get(r.symbol, []))
         cum = float(g["close"].iloc[i - 1])
-        issue = face + premium
-        terp = (held * cum + new * issue) / (held + new)
-        add(r.symbol, r.ex_date, "rights", terp / cum, "terp",
-            f"{new}:{held} at Rs {issue:g} (face {face:g} + premium {premium:g}); close before {cum:g}", g, i)
+        terms = "; ".join(f"{new}:{held} at Rs {face + premium:g}" for new, held, premium in classes)
+        add(r.symbol, r.ex_date, "rights", terp(cum, classes, face) / cum, "terp",
+            f"{terms} (face value then {face:g}); close before {cum:g}", g, i)
 
     for r in acts[acts["ca_type"] == "demerger"].itertuples():
         g, i = locate(r.symbol, r.ex_date)

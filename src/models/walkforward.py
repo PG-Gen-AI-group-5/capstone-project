@@ -18,11 +18,26 @@ from src.models.data import SEQUENCE_INPUTS_VERSION, Panel, load_panel
 from src.models.registry import create
 from src.store.db import config_hash, write_manifest, write_table
 
+DATA_STAGES = ("prices_adj", "features_daily", "labels")
+
+
+def data_fingerprint(cfg: Config) -> dict:
+    """What the built inputs hold (rows, dates, event counts), from the stage manifests; changes when
+    the data is rebuilt with different content, so saved forecasts are not reused across data changes."""
+    out = {}
+    for stage in DATA_STAGES:
+        path = cfg.derived_dir / stage / "_manifest.json"
+        if path.exists():
+            info = json.loads(path.read_text(encoding="utf-8"))
+            out[stage] = {k: v for k, v in info.items() if k not in ("git_commit", "built_at")}
+    return out
+
 
 def model_version(cfg: Config, name: str, params: dict | None) -> str:
     m = cfg["models"]
     sequence = (m.get("sequence"), SEQUENCE_INPUTS_VERSION) if name in ("lstm", "tft") else None
-    parts = (name, m.get(name), sequence, m.get("refit", {}).get(name), cfg["labels"], cfg["features"], params)
+    parts = (name, m.get(name), sequence, m.get("refit", {}).get(name), cfg["labels"], cfg["features"], params,
+             data_fingerprint(cfg))
     return f"{name}-{config_hash(*parts)[:8]}"
 
 

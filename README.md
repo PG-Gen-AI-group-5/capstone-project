@@ -57,7 +57,8 @@ Raw downloads (`data/raw/`, about 570 MB) stay on the machine that ran the colle
 pip install -e ".[dev,models,notebooks]"
 python -m src.models prepare                 # adjusted prices, features, labels -> data/derived/
 python -m src.models train --model all       # walk-forward over the validation year 2023
-python -m src.models evaluate                # metrics for every model
+python -m src.models train --model all --period inner   # walk-forward folds over 2020-2022
+python -m src.models evaluate                # metrics for every model (--period inner, --by vix_regime)
 ```
 
 Models: `base_rate`, `ma_crossover`, `hist_vol`, `arima`, `lstm`, `tft`. Notebooks in `notebooks/models/` (10 → 15) explain each step and load saved forecasts instead of retraining. Figures and metric tables go to `report/figures/models/`. Test-period (2024+) forecasts need `--period test --freeze` and are made once, by task 16.9.

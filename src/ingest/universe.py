@@ -28,6 +28,8 @@ KNOWN = {
     "ETERNAL": {"aliases": "eternal ltd; zomato", "old_symbols": "ZOMATO", "notes": "Renamed from Zomato"},
     "TMPV": {"old_symbols": "TATAMOTORS",
              "notes": "Tata Motors passenger vehicles after the 2025 demerger; check the demerger price adjustment"},
+    "TATACONSUM": {"old_symbols": "TATAGLOBAL", "notes": "Tata Global Beverages until 26 Feb 2020"},
+    "SHRIRAMFIN": {"old_symbols": "SRTRANSFIN", "notes": "Shriram Transport Finance until 19 Dec 2022"},
 }
 
 TIER_ORDER = {"nifty50": 0, "nifty100": 1, "nifty200": 2}

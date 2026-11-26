@@ -7,7 +7,8 @@ For each horizon h (trading days, the holding period d .. d+h-1):
 - fwd_vol_h: realised volatility, the root mean square of the daily close-to-close log returns of
   days d .. d+h-1
 - end_h: the date of d+h-1, the last day the label looks at (used by the walk-forward gap rule)
-Labels are NaN where the stock has fewer than h trading days left.
+Labels are NaN where the stock has fewer than h trading days left. Sessions listed in
+`features.skip_sessions` (Diwali Muhurat) are not trading days here, as in the features.
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import Config
-from src.store.db import read_table, write_manifest, write_table
+from src.store.db import read_table, skipped_sessions, write_manifest, write_table
 
 
 def label_columns(horizons) -> list[str]:
@@ -54,6 +55,7 @@ def make_labels(prices_adj: pd.DataFrame, horizons, entry: str = "open") -> pd.D
 def build(cfg: Config) -> dict:
     prices = read_table(cfg, "prices_adj", layer="derived", columns=["symbol", "trade_date", "open", "close"])
     prices["trade_date"] = pd.to_datetime(prices["trade_date"])
+    prices = prices[~prices["trade_date"].isin(skipped_sessions(cfg))]
     lab_cfg = cfg["labels"]
     horizons = list(range(1, max(lab_cfg["horizons"]) + 1))     # every step up to the longest (TFT path)
     labels = make_labels(prices, horizons, lab_cfg["entry"])

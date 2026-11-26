@@ -39,9 +39,9 @@ POWERGRID,Power Grid Corporation of India Ltd.,Power,INE752E01010,nifty50,power 
 RELIANCE,Reliance Industries Ltd.,Oil Gas & Consumable Fuels,INE002A01018,nifty50,reliance industries; ril,,,
 SBILIFE,SBI Life Insurance Company Ltd.,Financial Services,INE123W01016,nifty50,sbi life; sbi life insurance,,,
 SBIN,State Bank of India,Financial Services,INE062A01020,nifty50,state bank of india,,,
-SHRIRAMFIN,Shriram Finance Ltd.,Financial Services,INE721A01047,nifty50,shriram finance,,,
+SHRIRAMFIN,Shriram Finance Ltd.,Financial Services,INE721A01047,nifty50,shriram finance,,SRTRANSFIN,Shriram Transport Finance until 19 Dec 2022
 SUNPHARMA,Sun Pharmaceutical Industries Ltd.,Healthcare,INE044A01036,nifty50,sun pharmaceutical industries; sun pharmaceutical; sun pharma,,,
-TATACONSUM,Tata Consumer Products Ltd.,Fast Moving Consumer Goods,INE192A01025,nifty50,tata consumer products; tata consumer,,,
+TATACONSUM,Tata Consumer Products Ltd.,Fast Moving Consumer Goods,INE192A01025,nifty50,tata consumer products; tata consumer,,TATAGLOBAL,Tata Global Beverages until 26 Feb 2020
 TATASTEEL,Tata Steel Ltd.,Metals & Mining,INE081A01020,nifty50,tata steel,,,
 TCS,Tata Consultancy Services Ltd.,Information Technology,INE467B01029,nifty50,tata consultancy services,,,
 TECHM,Tech Mahindra Ltd.,Information Technology,INE669C01036,nifty50,tech mahindra,,,

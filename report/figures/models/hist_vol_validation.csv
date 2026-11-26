@@ -1,4 +1,4 @@
-model,horizon_days,n,accuracy,f1_up,actual_up,predicted_up,brier,log_loss,n_vol,vol_mae,vol_rmse
-hist_vol,1,,,,,,,,11863,0.008766968883405429,0.01288842906667044
-hist_vol,5,,,,,,,,11863,0.005749558995072538,0.009378699866872058
-hist_vol,10,,,,,,,,11863,0.004986104879883099,0.008524281244102264
+model,horizon_days,n,accuracy,balanced_accuracy,f1_up,actual_up,predicted_up,brier,log_loss,n_vol,vol_mae,vol_rmse
+hist_vol,1,,,,,,,,,12005,0.008835421003431192,0.012990369503442945
+hist_vol,5,,,,,,,,,12005,0.005807717222549453,0.009462515633291943
+hist_vol,10,,,,,,,,,12005,0.005041825456244971,0.008604771194616589

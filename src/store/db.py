@@ -49,6 +49,18 @@ def universe(cfg: Config, tier: str | None = "nifty50") -> pd.DataFrame:
     return df if tier is None else df[df["tier"] == tier].reset_index(drop=True)
 
 
+def skipped_sessions(cfg: Config) -> pd.DatetimeIndex:
+    """Special sessions left out of model inputs and labels: calendar_overrides.csv rows whose note
+    contains one of `features.skip_sessions` (e.g. Diwali Muhurat trading)."""
+    path = cfg.manual_dir / "calendar_overrides.csv"
+    patterns = [p.lower() for p in cfg["features"].get("skip_sessions", [])]
+    if not patterns or not path.exists():
+        return pd.DatetimeIndex([])
+    cal = pd.read_csv(path, dtype=str).fillna("")
+    hit = cal["note"].str.lower().map(lambda note: any(p in note for p in patterns))
+    return pd.DatetimeIndex(pd.to_datetime(cal.loc[hit, "date"]))
+
+
 def git_commit() -> str:
     try:
         out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True,

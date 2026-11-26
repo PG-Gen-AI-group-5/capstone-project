@@ -34,8 +34,10 @@ def test_combined_bonus_and_split_subject_multiplies_both():
 
 
 def test_rights_terms():
-    assert rights_terms("Rights 1:15 @ Premium Rs 1247") == (1, 15, 1247.0)
-    assert rights_terms("Dividend Rs 5") is None
+    assert rights_terms("Rights 1:15 @ Premium Rs 1247") == [(1, 15, 1247.0)]
+    assert rights_terms("Rights - 4:25 Fully Paid Up Shares @ Premium Rs 500/- Per Share / "
+                        "2:25 Partly Paid Up Shares @ Premium Rs 605/- Per Share") == [(4, 25, 500.0), (2, 25, 605.0)]
+    assert rights_terms("Dividend Rs 5") == []
 
 
 def test_bonus_removes_the_jump_and_scales_volume():
@@ -52,6 +54,25 @@ def test_rights_factor_is_terp_over_close_before():
     ev = build_events(p, actions("Rights 1:4 @ Premium Rs 49", "rights", face=1.0), NO_MANUAL)
     terp = (4 * 100 + 1 * 50) / 5
     assert ev.loc[0, "factor"] == pytest.approx(terp / 100)
+
+
+def test_rights_with_two_classes_counts_both():
+    p = prices(ratio=1.0)
+    subject = ("Rights - 1:4 Fully Paid Up Shares @ Premium Rs 49/- Per Share / "
+               "1:4 Partly Paid Up Shares @ Premium Rs 59/- Per Share")
+    ev = build_events(p, actions(subject, "rights", face=1.0), NO_MANUAL)
+    assert ev.loc[0, "factor"] == pytest.approx((4 * 100 + 50 + 60) / 6 / 100)
+
+
+def test_rights_issue_price_uses_the_face_value_before_a_later_split():
+    """NSE's face_value is today's: a Rs 10 share split to Re 1 later shows face 1 on the old rights row."""
+    p = prices(ratio=1.0)
+    acts = pd.concat([actions("Rights 1:4 @ Premium Rs 40", "rights", face=1.0),
+                      actions("Face Value Split (Sub-Division) - From Rs 10/- Per Share To Re 1/- Per Share",
+                              "split", ex="2024-01-05", face=1.0)], ignore_index=True)
+    ev = build_events(p, acts, NO_MANUAL)
+    rights = ev[ev["kind"] == "rights"].iloc[0]
+    assert rights["factor"] == pytest.approx((4 * 100 + 1 * 50) / 5 / 100)       # issue price 10 + 40
 
 
 def test_manual_row_replaces_computed_factor_and_adds_missing_events():

@@ -121,6 +121,9 @@ periods:
   train: [2016-01-01, 2022-12-31]
   validation: [2023-01-01, 2023-12-31]
   test: [2024-01-01, null]         # null = latest data
+  # Walk-forward folds inside the training years: a second check beside the calm 2023 validation
+  # year (EDA 02 §10). 2020 has the COVID crash, 2022 a falling market.
+  inner: [2020-01-01, 2022-12-31]
 
 forecast_time_ist: "08:30"         # forecast for trading day d is made at 08:30 IST; entry at the 09:15 open
 
@@ -137,6 +140,22 @@ adjustment:
 
 features:
   min_history: 200                 # trading days a stock needs before its rows are used (EMA 200)
+  # Short special sessions left out of model inputs and labels (stocks and index). Diwali Muhurat
+  # trading is about an hour in the evening, with no 09:15 open to enter at. Matched against the
+  # note column of data/manual/calendar_overrides.csv.
+  skip_sessions: [Muhurat]
+  beta_window: 60                  # trading days for the rolling beta to the Nifty 50
+  events:
+    # A results release is the earliest of: financial_results.broadcast_at, an announcement in one of
+    # these categories, or an "Outcome of Board Meeting" announcement that mentions results
+    # (EDA 03 §4: the broadcast time is often a day or more late; open item 26).
+    results_categories: ["Financial Result Updates", "Financial Results Updates"]
+    results_merge_days: 25         # records within this many trading days of a release join it (late refilings);
+                                   # real releases are 27+ trading days apart (Q4 by 30 May, Q1 from 9 Jul)
+    days_since_cap: 90             # trading days; also the value before a stock's first release
+  # Monthly F&O expiry weekday (0 = Monday) from each start date: the last such weekday of the month,
+  # or the trading day before it when it is a holiday. NSE moved monthly expiries to Tuesday in Sep 2025.
+  expiry_weekday: {"2016-01-01": 3, "2025-09-01": 1}
 
 models:
   seed: 42

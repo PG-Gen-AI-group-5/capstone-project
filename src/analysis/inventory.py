@@ -11,6 +11,8 @@ from datetime import time
 import numpy as np
 import pandas as pd
 
+from src.store.pit import first_usable_day
+
 IST = "Asia/Kolkata"
 FORECAST_TIME = time(8, 30)  # forecast for day d is made at 08:30 IST
 MARKET_CLOSE = time(15, 30)
@@ -188,22 +190,9 @@ def first_informed_day(ts: pd.Series, days: pd.DatetimeIndex) -> pd.Series:
 
     Published before 08:30 IST on a trading day -> that day; otherwise the next trading day.
     NaT when the record falls outside `days` (before its first day, or after its last), since the true
-    first trading day can't be known from this calendar.
+    first trading day can't be known from this calendar. The rule lives in src.store.pit.
     """
-    t = pd.Series(ts)
-    if isinstance(t.dtype, pd.DatetimeTZDtype):
-        t = t.dt.tz_convert(IST).dt.tz_localize(None)
-    t = pd.to_datetime(t)
-    day = t.dt.normalize()
-    before = (t - day) < pd.Timedelta(hours=8, minutes=30)
-    arr = days.values
-    i_same = np.searchsorted(arr, day.values, side="left")    # first trading day >= day
-    i_next = np.searchsorted(arr, day.values, side="right")   # first trading day > day
-    idx = np.where(before.values, i_same, i_next)
-    valid = t.notna().values & (idx < len(arr)) & (day.values >= arr[0])
-    out = np.full(len(t), np.datetime64("NaT"), dtype="datetime64[ns]")
-    out[valid] = arr[idx[valid]]
-    return pd.Series(out, index=t.index)
+    return first_usable_day(ts, days, FORECAST_TIME.strftime("%H:%M"))
 
 
 ADJUSTING_CA = ("split", "bonus", "rights", "demerger", "other")

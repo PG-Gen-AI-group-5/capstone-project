@@ -8,9 +8,9 @@ import pandas as pd
 
 from src.config import Config
 from src.features.build import CALENDAR_FEATURES, FEATURES
-from src.store.db import read_table, universe
+from src.store.db import read_table, skipped_sessions, universe
 
-SEQUENCE_INPUTS_VERSION = 2       # bump when the LSTM/TFT inputs change, so saved forecasts are not reused
+SEQUENCE_INPUTS_VERSION = 3       # bump when the LSTM/TFT inputs change, so saved forecasts are not reused
 
 
 @dataclass
@@ -61,6 +61,17 @@ def label_frame(panel: Panel, mask: np.ndarray | None = None) -> pd.DataFrame:
                            "ret": df[f"fwd_ret_{h}"], "up": df[f"up_{h}"], "vol": df[f"fwd_vol_{h}"]})
              for h in panel.horizons]
     return pd.concat(parts, ignore_index=True)
+
+
+def regimes(cfg: Config) -> pd.DataFrame:
+    """Market regime of each trading day (trend, vix), as known before the day opens."""
+    from src.features.regime import regime_table
+
+    idx = read_table(cfg, "index_daily", columns=["index_name", "trade_date", "close"])
+    idx["trade_date"] = pd.to_datetime(idx["trade_date"])
+    idx = idx[~idx["trade_date"].isin(skipped_sessions(cfg))]
+    wide = idx.pivot_table(index="trade_date", columns="index_name", values="close").sort_index()
+    return regime_table(wide["Nifty 50"], wide["India VIX"], cfg["regime"])
 
 
 def prepare(cfg: Config, log=print) -> dict:

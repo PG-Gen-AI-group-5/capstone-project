@@ -44,8 +44,8 @@ capstone-project/
 │   ├── store/                                      point-in-time store
 │   │   ├── adjust.py                               2.4   adjusted prices
 │   │   ├── db.py                                   6.5   DuckDB connection over lake/ and derived/
-│   │   └── pit.py                                  6.6   as_of readers: prices, announcements, news, flows, macro
-│   ├── features/  indicators.py regime.py setups.py news.py         10.1–10.4, 5.5
+│   │   └── pit.py                                  6.6   the time rule: as_of, first_usable_day (exists); as_of readers
+│   ├── features/  indicators.py build.py events.py regime.py setups.py news.py   10.1–10.4, 5.5
 │   ├── labels/    labels.py splits.py                               16.1–16.2
 │   ├── catalysts/ calendar.py                                       7.1–7.4
 │   ├── retrieval/ chunk.py embed.py index.py search.py citations.py 8.1–8.5
@@ -111,7 +111,7 @@ Each stage is a function registered in `src/pipeline/stages.py`. It declares the
 |---|---|---|---|---|
 | `ingest` | `src.ingest` | NSE, FRED, GDELT, manual CSVs | `data/lake/*` | 2–5, 6.9 |
 | `prices_adj` | `src.store.adjust` | `prices_daily`, `corporate_actions`, `manual/ca_adjustments.csv` | `derived/prices_adj` | 2.4 |
-| `features` | `src.features` | `prices_adj`, `index_daily`, `macro` | `derived/features_daily` | 10.1–10.3 |
+| `features` | `src.features` | `prices_adj`, `index_daily`, `macro`, `announcements`, `financial_results` | `derived/features_daily`, `derived/calendar`, `derived/results_releases` | 10.1–10.3 |
 | `labels` | `src.labels` | `prices_adj` | `derived/labels` | 16.1 |
 | `catalysts` | `src.catalysts` | `board_meetings`, `financial_results`, `rbi_policy`, calendar | `derived/catalysts` | 7.1–7.3 |
 | `chunks` | `src.retrieval` | `announcement_text`, `news` | `derived/chunks`, `data/vector/` | 8.1–8.3 |
@@ -134,8 +134,12 @@ Until `src.pipeline` exists, the modelling stages run through `python -m src.mod
 ```
 python -m src.models prepare                 # prices_adj -> features -> labels
 python -m src.models train --model arima     # walk-forward over the validation year; --model all for every model
-python -m src.models evaluate                # metrics table for every model with saved forecasts
+python -m src.models train --model all --period inner   # walk-forward folds inside the training years (2020-2022)
+python -m src.models evaluate                # metrics, plus the constant majority guess for the same days
+python -m src.models evaluate --by vix_regime   # the same, split by market regime (or --by trend_regime)
 ```
+
+Model inputs leave out short special sessions (`features.skip_sessions`: Diwali Muhurat trading, which has no 09:15 open), in both features and labels. Saved forecasts are reused only when the config and the built inputs (the stage manifests) are unchanged.
 
 **Live daily schedule** (task 6.9). Run the evening steps after FII/DII are published (20:00 IST):
 
@@ -147,6 +151,8 @@ python -m src.models evaluate                # metrics table for every model wit
 ## Interfaces
 
 ### Point-in-time readers (`src/store/pit.py`)
+
+Built so far: `as_of_utc(trade_dates)` (08:30 IST on each day) and `first_usable_day(published_at, days)`, which places each dated record on its day 0, the first trading day with `published_at < as_of`. The event features (`src/features/events.py`) and the EDA's event studies both use it. The per-symbol readers below are still to build (task 6.6):
 
 ```python
 def prices_as_of(symbols: list[str], as_of: datetime, lookback_days: int) -> pd.DataFrame
@@ -215,6 +221,7 @@ The LSTM and TFT also have `load(cfg, folder, panel)` to rebuild a saved fold's 
 - **The gap rule:** a training row for day `t` looks at prices up to `end_h` (day `t+h−1`). For predictions starting at `T`, a row trains only if its `end_10` is before `T`.
 - **Early stopping (LSTM, TFT):** the last `early_stop_days` of the training rows are held out, with the same gap before them.
 - **Validation:** the same procedure over 2023.
+- **Inner folds:** the same procedure over 2020–2022 (`periods.inner`), inside the training years, so models are also checked on a stressed market (the 2020 crash, the 2022 fall). 2023 is calm: no high-VIX days (EDA 02 §10).
 - **Test:** the same procedure over 2024 onwards, run once by task 16.9.
 
 ### Signals (what the backtester accepts)
